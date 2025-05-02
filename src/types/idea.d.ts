@@ -7,7 +7,7 @@ export interface IdeaProps {
   title: string;
   description: string;
   media?: string;
-  thumbnail: string;
+  thumbnailUrl?: string;
   user: User;
   likes: number;
   comments: Comment[];
@@ -23,5 +23,5 @@ export interface IdeaProps {
 
 export interface IdeaFeedProps {
   ideas: IdeaProps[];
-  onIdeaClick?: (ideaId: string) => void;
+  className?: string;
 }

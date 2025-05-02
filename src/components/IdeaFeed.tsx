@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { Music, Lightbulb, Tag, Star } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCount } from "@/data/ideas";
+import { useNavigate } from "react-router-dom";
 
 interface IdeaItemProps {
   idea: Idea;
@@ -18,16 +19,22 @@ interface IdeaItemProps {
 const IdeaItem: React.FC<IdeaItemProps> = ({ idea, isActive }) => {
   const [showComments, setShowComments] = useState(false);
   const ideaRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+
+  const handleIdeaClick = () => {
+    navigate(`/idea/${idea.id}`);
+  };
 
   return (
     <div
       ref={ideaRef}
       className="snap-start w-full h-full flex items-center justify-center bg-black relative"
+      onClick={handleIdeaClick}
     >
       {/* Video or Card display based on idea type */}
       {idea.type === "video" ? (
         <VideoPlayer
-          videoUrl={idea.videoUrl || ""}
+          videoUrl={idea.videoUrl || idea.media || ""}
           inView={isActive}
           className="absolute inset-0 w-full h-full"
         />
@@ -74,15 +81,15 @@ const IdeaItem: React.FC<IdeaItemProps> = ({ idea, isActive }) => {
                     <div className="flex justify-between text-xs">
                       <div>
                         <div className="text-white">Practicality</div>
-                        <div className="text-tiktok-red font-bold">{idea.rating.practicality}/10</div>
+                        <div className="text-tiktok-red font-bold">{idea.ratings?.practicality || 0}/10</div>
                       </div>
                       <div>
                         <div className="text-white">Innovation</div>
-                        <div className="text-tiktok-blue font-bold">{idea.rating.innovation}/10</div>
+                        <div className="text-tiktok-blue font-bold">{idea.ratings?.innovation || 0}/10</div>
                       </div>
                       <div>
                         <div className="text-white">Impact</div>
-                        <div className="text-green-400 font-bold">{idea.rating.impact}/10</div>
+                        <div className="text-green-400 font-bold">{idea.ratings?.impact || 0}/10</div>
                       </div>
                     </div>
                   </div>
@@ -134,7 +141,7 @@ const IdeaItem: React.FC<IdeaItemProps> = ({ idea, isActive }) => {
           comments={idea.comments.length}
           shares={idea.shares}
           onCommentClick={() => setShowComments(true)}
-          rating={idea.rating}
+          rating={idea.ratings}
         />
       </div>
 

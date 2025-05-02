@@ -16,15 +16,11 @@ const Index: React.FC = () => {
     }
   }, []);
 
-  const handleIdeaClick = (ideaId: string) => {
-    navigate(`/idea/${ideaId}`);
-  };
-
   return (
     <div className="min-h-screen bg-black text-white">
       <Header />
       <div className="pt-24 pb-2 px-0 sm:px-4 max-w-screen-md mx-auto">
-        <IdeaFeed ideas={ideas} onIdeaClick={handleIdeaClick} />
+        <IdeaFeed ideas={ideas} className="idea-feed" />
       </div>
     </div>
   );

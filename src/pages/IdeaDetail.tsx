@@ -70,13 +70,13 @@ const IdeaDetail = () => {
               {idea.type === "video" ? (
                 <video 
                   src={idea.media} 
-                  poster={idea.thumbnail} 
+                  poster={idea.thumbnailUrl || idea.media} 
                   controls 
                   className="w-full"
                 />
               ) : (
                 <img 
-                  src={idea.media || idea.thumbnail} 
+                  src={idea.media || idea.thumbnailUrl} 
                   alt={idea.title} 
                   className="w-full object-cover"
                 />
@@ -275,7 +275,7 @@ const IdeaDetail = () => {
                       }}
                     >
                       <img 
-                        src={similarIdea.thumbnail} 
+                        src={similarIdea.thumbnailUrl || similarIdea.media} 
                         alt={similarIdea.title} 
                         className="w-14 h-14 rounded object-cover"
                       />
