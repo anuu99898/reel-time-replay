@@ -160,7 +160,7 @@ const UploadPage = () => {
       const tagsArray = ideaData.tags ? ideaData.tags.split(',').map(tag => tag.trim()) : [];
       
       // 3. Insert idea record to database
-      const { data: ideaData: newIdea, error: ideaError } = await supabase
+      const { data, error: ideaError } = await supabase
         .from('ideas')
         .insert([
           {
@@ -183,12 +183,12 @@ const UploadPage = () => {
       }
       
       // 4. Insert ratings
-      if (newIdea?.id) {
+      if (data?.id) {
         const { error: ratingError } = await supabase
           .from('idea_ratings')
           .insert([
             {
-              idea_id: newIdea.id,
+              idea_id: data.id,
               practicality: ideaData.practicality,
               innovation: ideaData.innovation,
               impact: ideaData.impact
