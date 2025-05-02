@@ -1,7 +1,7 @@
 
 import React, { useState } from "react";
-import { Comment as CommentType, User, formatCount } from "@/data/videos";
-import { Heart, X, Send } from "lucide-react";
+import { Comment as CommentType, User, formatCount } from "@/data/ideas";
+import { Heart, X, Send, Lightbulb } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -43,11 +43,11 @@ const Comment: React.FC<CommentProps> = ({ comment }) => {
         onClick={handleLike}
         className="flex flex-col items-center justify-start gap-1"
       >
-        <Heart
+        <Lightbulb
           size={16}
           className={cn(
             "transition-colors",
-            liked ? "text-tiktok-red fill-tiktok-red" : "text-gray-400"
+            liked ? "text-yellow-400 fill-yellow-400" : "text-gray-400"
           )}
         />
         <span className="text-xs text-gray-400">{formatCount(likes)}</span>
@@ -89,11 +89,11 @@ const CommentSection: React.FC<CommentSectionProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black bg-opacity-50">
       <div className="flex-1" onClick={onClose}></div>
-      <div className="bg-white dark:bg-tiktok-dark rounded-t-2xl h-[70vh] flex flex-col animate-slide-up">
+      <div className="bg-black dark:bg-gray-900 rounded-t-2xl h-[70vh] flex flex-col animate-slide-up border-t border-gray-800">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800">
+        <div className="flex items-center justify-between p-4 border-b border-gray-800">
           <h3 className="font-semibold text-lg">
-            {commentsList.length} comments
+            {commentsList.length} feedback{commentsList.length !== 1 ? "s" : ""}
           </h3>
           <button onClick={onClose}>
             <X size={24} />
@@ -108,11 +108,11 @@ const CommentSection: React.FC<CommentSectionProps> = ({
         </div>
 
         {/* Comment input */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-800 flex items-center gap-2">
+        <div className="p-4 border-t border-gray-800 flex items-center gap-2">
           <input
             type="text"
-            className="flex-1 p-2 border border-gray-300 dark:border-gray-700 rounded-full bg-transparent dark:text-white"
-            placeholder="Add a comment..."
+            className="flex-1 p-2 border border-gray-700 rounded-full bg-transparent text-white"
+            placeholder="Share your thoughts on this idea..."
             value={commentText}
             onChange={(e) => setCommentText(e.target.value)}
           />
@@ -122,7 +122,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({
             variant="ghost"
             disabled={!commentText.trim()}
           >
-            <Send size={20} className={commentText.trim() ? "text-tiktok-red" : ""} />
+            <Send size={20} className={commentText.trim() ? "text-yellow-400" : ""} />
           </Button>
         </div>
       </div>

@@ -16,8 +16,8 @@
     --popover: 0 0% 10%;
     --popover-foreground: 0 0% 100%;
 
-    --primary: 340 100% 59%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 45 100% 60%; /* Yellow for ideas */
+    --primary-foreground: 0 0% 10%;
 
     --secondary: 183 89% 54%;
     --secondary-foreground: 0 0% 10%;
@@ -65,7 +65,7 @@
   }
   
   .video-progress-fill {
-    @apply h-full bg-tiktok-red;
+    @apply h-full bg-yellow-400;
   }
   
   /* Smooth transitions */
@@ -73,5 +73,40 @@
     transition-property: all;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     transition-duration: 150ms;
+  }
+
+  /* Custom animations */
+  .animate-pulse-scale {
+    animation: pulse-scale 0.6s ease-in-out;
+  }
+  
+  @keyframes pulse-scale {
+    0%, 100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.1);
+    }
+  }
+
+  /* Rating bar styles */
+  .rating-bar {
+    @apply h-2 bg-gray-700 rounded-full overflow-hidden w-full;
+  }
+  
+  .rating-bar-fill {
+    @apply h-full;
+  }
+  
+  .rating-practicality {
+    @apply bg-green-500;
+  }
+  
+  .rating-innovation {
+    @apply bg-blue-500;
+  }
+  
+  .rating-impact {
+    @apply bg-yellow-400;
   }
 }
