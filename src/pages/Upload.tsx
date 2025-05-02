@@ -7,6 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/sonner";
 import { Upload, Image, Video, X } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { v4 as uuidv4 } from "uuid";
 
 const UploadPage = () => {
   const navigate = useNavigate();
@@ -15,6 +17,7 @@ const UploadPage = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [fileType, setFileType] = useState<"image" | "video" | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
   const [ideaData, setIdeaData] = useState({
     title: "",
@@ -29,13 +32,18 @@ const UploadPage = () => {
 
   // Check if user is logged in
   useEffect(() => {
-    const user = localStorage.getItem("currentUser");
-    if (!user) {
-      toast.error("Please login to upload ideas");
-      navigate("/login");
-    } else {
-      setCurrentUser(JSON.parse(user));
-    }
+    const checkUser = async () => {
+      const { data } = await supabase.auth.getSession();
+      
+      if (data.session?.user) {
+        setCurrentUser(data.session.user);
+      } else {
+        toast.error("Please login to upload ideas");
+        navigate("/login");
+      }
+    };
+    
+    checkUser();
   }, [navigate]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -79,6 +87,9 @@ const UploadPage = () => {
       return;
     }
 
+    // Store the file for later upload
+    setSelectedFile(file);
+    
     // Create preview URL
     const url = URL.createObjectURL(file);
     setPreviewUrl(url);
@@ -90,27 +101,115 @@ const UploadPage = () => {
     }
     setPreviewUrl(null);
     setFileType(null);
+    setSelectedFile(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const uploadFileToStorage = async (file: File, fileType: string) => {
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${uuidv4()}.${fileExt}`;
+      const filePath = `${fileType}/${fileName}`;
+      
+      const { error: uploadError, data } = await supabase.storage
+        .from('idea-media')
+        .upload(filePath, file);
+      
+      if (uploadError) {
+        throw uploadError;
+      }
+      
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('idea-media')
+        .getPublicUrl(filePath);
+        
+      return publicUrl;
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      throw error;
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!previewUrl) {
+    
+    if (!selectedFile) {
       toast.error("Please select an image or video for your idea");
+      return;
+    }
+    
+    if (!currentUser) {
+      toast.error("You must be logged in to upload an idea");
+      navigate("/login");
       return;
     }
 
     setIsLoading(true);
 
-    // Simulate API call with timeout
-    setTimeout(() => {
-      // In a real app, this would be an API call to save the idea
+    try {
+      // 1. Upload file to storage
+      const mediaUrl = await uploadFileToStorage(
+        selectedFile, 
+        fileType === 'image' ? 'images' : 'videos'
+      );
+      
+      // 2. Convert tags string to array
+      const tagsArray = ideaData.tags ? ideaData.tags.split(',').map(tag => tag.trim()) : [];
+      
+      // 3. Insert idea record to database
+      const { data: ideaData: newIdea, error: ideaError } = await supabase
+        .from('ideas')
+        .insert([
+          {
+            title: ideaData.title,
+            description: ideaData.description,
+            type: fileType,
+            media_url: mediaUrl,
+            thumbnail_url: fileType === 'video' ? mediaUrl : null, // For videos, use the same URL for thumbnail
+            contact_email: ideaData.contactEmail,
+            contact_phone: ideaData.contactPhone,
+            user_id: currentUser.id,
+            tags: tagsArray
+          }
+        ])
+        .select('id')
+        .single();
+      
+      if (ideaError) {
+        throw ideaError;
+      }
+      
+      // 4. Insert ratings
+      if (newIdea?.id) {
+        const { error: ratingError } = await supabase
+          .from('idea_ratings')
+          .insert([
+            {
+              idea_id: newIdea.id,
+              practicality: ideaData.practicality,
+              innovation: ideaData.innovation,
+              impact: ideaData.impact
+            }
+          ]);
+        
+        if (ratingError) {
+          console.error('Error creating ratings:', ratingError);
+          // Continue even if rating insertion fails
+        }
+      }
+      
       toast.success("Your idea has been uploaded successfully!");
       setIsLoading(false);
       navigate("/");
-    }, 1500);
+      
+    } catch (error) {
+      console.error('Error uploading idea:', error);
+      toast.error("Failed to upload your idea. Please try again.");
+      setIsLoading(false);
+    }
   };
 
   return (
