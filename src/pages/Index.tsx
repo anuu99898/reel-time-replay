@@ -45,18 +45,29 @@ const Index: React.FC = () => {
               .select('*')
               .eq('idea_id', idea.id);
               
+            // Convert the database type value to one of our accepted types
+            // Ensure type is one of: "video", "image", "text"
+            let ideaType: "video" | "image" | "text" = "text"; // Default to text
+            if (idea.type === "video") ideaType = "video";
+            else if (idea.type === "image") ideaType = "image";
+            
             // Transform the data to match our IdeaProps interface
             const transformedIdea: IdeaProps = {
               id: idea.id,
               title: idea.title,
               description: idea.description,
-              type: idea.type,
+              type: ideaType,
               media: idea.media_url,
               thumbnailUrl: idea.thumbnail_url,
               user: {
                 id: idea.user_id || 'anonymous',
                 username: 'User', // In a real app, you'd fetch the username
                 avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=' + (idea.user_id || 'anon'),
+                // Add the missing properties required by the User type
+                name: 'Anonymous User',
+                followers: 0,
+                following: 0,
+                bio: ''
               },
               likes: idea.likes || 0,
               comments: commentsData?.map(comment => ({
@@ -67,7 +78,14 @@ const Index: React.FC = () => {
                   id: comment.user_id || 'anonymous',
                   username: 'User',
                   avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=' + (comment.user_id || 'anon'),
-                }
+                  // Add the missing properties required by the User type
+                  name: 'Anonymous User',
+                  followers: 0,
+                  following: 0,
+                  bio: ''
+                },
+                // Add the missing 'likes' property required by the Comment type
+                likes: 0
               })) || [],
               shares: idea.shares || 0,
               timestamp: new Date(idea.created_at).toLocaleString(),
