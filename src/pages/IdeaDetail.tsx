@@ -49,6 +49,11 @@ const IdeaDetail = () => {
 
   if (!idea) return null;
 
+  // Get ratings safely with default values
+  const practicality = idea.rating?.practicality || idea.ratings?.practicality || 0;
+  const innovation = idea.rating?.innovation || idea.ratings?.innovation || 0;
+  const impact = idea.rating?.impact || idea.ratings?.impact || 0;
+
   return (
     <div className="min-h-screen bg-black text-white pt-16 pb-16 px-4">
       <div className="max-w-4xl mx-auto">
@@ -69,14 +74,14 @@ const IdeaDetail = () => {
             <div className="rounded-lg overflow-hidden bg-gray-900 mb-4">
               {idea.type === "video" ? (
                 <video 
-                  src={idea.media} 
-                  poster={idea.thumbnailUrl || idea.media} 
+                  src={idea.videoUrl} 
+                  poster={idea.thumbnailUrl} 
                   controls 
                   className="w-full"
                 />
               ) : (
                 <img 
-                  src={idea.media || idea.thumbnailUrl} 
+                  src={idea.thumbnailUrl || (idea.images && idea.images[0])} 
                   alt={idea.title} 
                   className="w-full object-cover"
                 />
@@ -200,12 +205,12 @@ const IdeaDetail = () => {
                   <div>
                     <div className="flex justify-between text-sm mb-1">
                       <span>Practicality</span>
-                      <span>{idea.ratings.practicality}%</span>
+                      <span>{practicality}%</span>
                     </div>
                     <div className="rating-bar">
                       <div 
                         className="rating-bar-fill rating-practicality" 
-                        style={{ width: `${idea.ratings.practicality}%` }}
+                        style={{ width: `${practicality}%` }}
                       ></div>
                     </div>
                   </div>
@@ -213,12 +218,12 @@ const IdeaDetail = () => {
                   <div>
                     <div className="flex justify-between text-sm mb-1">
                       <span>Innovation</span>
-                      <span>{idea.ratings.innovation}%</span>
+                      <span>{innovation}%</span>
                     </div>
                     <div className="rating-bar">
                       <div 
                         className="rating-bar-fill rating-innovation" 
-                        style={{ width: `${idea.ratings.innovation}%` }}
+                        style={{ width: `${innovation}%` }}
                       ></div>
                     </div>
                   </div>
@@ -226,12 +231,12 @@ const IdeaDetail = () => {
                   <div>
                     <div className="flex justify-between text-sm mb-1">
                       <span>Potential Impact</span>
-                      <span>{idea.ratings.impact}%</span>
+                      <span>{impact}%</span>
                     </div>
                     <div className="rating-bar">
                       <div 
                         className="rating-bar-fill rating-impact" 
-                        style={{ width: `${idea.ratings.impact}%` }}
+                        style={{ width: `${impact}%` }}
                       ></div>
                     </div>
                   </div>
@@ -275,7 +280,7 @@ const IdeaDetail = () => {
                       }}
                     >
                       <img 
-                        src={similarIdea.thumbnailUrl || similarIdea.media} 
+                        src={similarIdea.thumbnailUrl || (similarIdea.images && similarIdea.images[0])} 
                         alt={similarIdea.title} 
                         className="w-14 h-14 rounded object-cover"
                       />

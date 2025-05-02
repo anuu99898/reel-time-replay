@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from "react";
 import { Idea } from "@/data/ideas";
 import VideoPlayer from "./VideoPlayer";
@@ -34,7 +33,7 @@ const IdeaItem: React.FC<IdeaItemProps> = ({ idea, isActive }) => {
       {/* Video or Card display based on idea type */}
       {idea.type === "video" ? (
         <VideoPlayer
-          videoUrl={idea.videoUrl || idea.media || ""}
+          videoUrl={idea.videoUrl || ""}
           inView={isActive}
           className="absolute inset-0 w-full h-full"
         />
@@ -81,15 +80,15 @@ const IdeaItem: React.FC<IdeaItemProps> = ({ idea, isActive }) => {
                     <div className="flex justify-between text-xs">
                       <div>
                         <div className="text-white">Practicality</div>
-                        <div className="text-tiktok-red font-bold">{idea.ratings?.practicality || 0}/10</div>
+                        <div className="text-tiktok-red font-bold">{idea.rating?.practicality || 0}/10</div>
                       </div>
                       <div>
                         <div className="text-white">Innovation</div>
-                        <div className="text-tiktok-blue font-bold">{idea.ratings?.innovation || 0}/10</div>
+                        <div className="text-tiktok-blue font-bold">{idea.rating?.innovation || 0}/10</div>
                       </div>
                       <div>
                         <div className="text-white">Impact</div>
-                        <div className="text-green-400 font-bold">{idea.ratings?.impact || 0}/10</div>
+                        <div className="text-green-400 font-bold">{idea.rating?.impact || 0}/10</div>
                       </div>
                     </div>
                   </div>
@@ -141,7 +140,7 @@ const IdeaItem: React.FC<IdeaItemProps> = ({ idea, isActive }) => {
           comments={idea.comments.length}
           shares={idea.shares}
           onCommentClick={() => setShowComments(true)}
-          rating={idea.ratings}
+          rating={idea.rating}
         />
       </div>
 

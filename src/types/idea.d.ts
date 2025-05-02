@@ -14,7 +14,7 @@ export interface IdeaProps {
   shares: number;
   timestamp: string;
   tags: string[];
-  ratings: {
+  ratings?: {
     practicality: number;
     innovation: number;
     impact: number;
