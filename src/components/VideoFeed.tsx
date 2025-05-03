@@ -1,5 +1,4 @@
-
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Video as VideoType } from "@/data/videos";
 import VideoPlayer from "./VideoPlayer";
 import VideoActions from "./VideoActions";
@@ -15,43 +14,27 @@ interface VideoItemProps {
 
 const VideoItem: React.FC<VideoItemProps> = ({ video, isActive }) => {
   const [showComments, setShowComments] = useState(false);
-  const videoRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div
-      ref={videoRef}
-      className="snap-start w-full h-full flex items-center justify-center bg-black relative"
-    >
-      {/* Video player */}
+    <div className="snap-start w-full h-screen flex flex-col justify-end bg-black relative overflow-hidden">
       <VideoPlayer
         videoUrl={video.videoUrl}
         inView={isActive}
-        className="absolute inset-0 w-full h-full"
+        className="absolute inset-0 w-full h-full object-cover"
       />
 
-      {/* Video info - bottom overlay */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black to-transparent z-10">
-        <div className="flex">
-          <div className="flex-1 pr-16">
-            {/* User info */}
-            <ProfilePreview user={video.user} className="mb-4" />
-            
-            {/* Caption */}
-            <p className="text-white text-sm mb-2">{video.description}</p>
-            
-            {/* Audio info */}
-            <div className="flex items-center">
-              <Music size={16} className="text-white mr-2" />
-              <p className="text-white text-sm">
-                {video.audioName} · {video.audioCreator}
-              </p>
-            </div>
-          </div>
+      <div className="relative z-10 p-4 bg-gradient-to-t from-black/80 to-transparent">
+        <ProfilePreview user={video.user} className="mb-2" />
+        <p className="text-white text-sm mb-2 break-words whitespace-pre-wrap">
+          {video.description}
+        </p>
+        <div className="flex items-center text-white text-sm truncate">
+          <Music size={16} className="mr-2" />
+          {video.audioName} · {video.audioCreator}
         </div>
       </div>
 
-      {/* Video actions - right side */}
-      <div className="absolute bottom-20 right-2 z-10">
+      <div className="absolute right-4 bottom-24 z-10">
         <VideoActions
           likes={video.likes}
           comments={video.comments.length}
@@ -60,13 +43,11 @@ const VideoItem: React.FC<VideoItemProps> = ({ video, isActive }) => {
         />
       </div>
 
-      {/* Comments modal */}
       {showComments && (
         <CommentSection
           comments={video.comments}
           onClose={() => setShowComments(false)}
-          // In a real app, this would be the logged-in user
-          currentUser={video.user} 
+          currentUser={video.user}
         />
       )}
     </div>
@@ -81,43 +62,58 @@ interface VideoFeedProps {
 const VideoFeed: React.FC<VideoFeedProps> = ({ videos, className }) => {
   const [activeVideoIndex, setActiveVideoIndex] = useState(0);
   const feedRef = useRef<HTMLDivElement>(null);
-  
-  // Detect which video is in view based on scroll position
-  const handleScroll = () => {
+
+  const handleScroll = useCallback(() => {
     if (!feedRef.current) return;
-    
     const scrollTop = feedRef.current.scrollTop;
-    const videoHeight = feedRef.current.clientHeight;
-    const index = Math.round(scrollTop / videoHeight);
-    
-    if (index !== activeVideoIndex) {
-      setActiveVideoIndex(index);
-    }
-  };
+    const height = feedRef.current.clientHeight;
+    const index = Math.round(scrollTop / height);
+    setActiveVideoIndex(index);
+  }, []);
 
   useEffect(() => {
-    const feedElement = feedRef.current;
-    if (feedElement) {
-      feedElement.addEventListener("scroll", handleScroll);
-      return () => {
-        feedElement.removeEventListener("scroll", handleScroll);
-      };
-    }
-  }, [activeVideoIndex]);
+    const feed = feedRef.current;
+    if (!feed) return;
+    feed.addEventListener("scroll", handleScroll);
+    return () => feed.removeEventListener("scroll", handleScroll);
+  }, [handleScroll]);
+
+  // Gesture support (Swipe up and down)
+  const handleSwipe = (e: React.TouchEvent) => {
+    const touchStart = e.touches[0].clientY;
+    const handleTouchEnd = (e: React.TouchEvent) => {
+      const touchEnd = e.changedTouches[0].clientY;
+      if (touchStart - touchEnd > 30) {
+        // Swipe up: move to next video
+        if (activeVideoIndex < videos.length - 1) {
+          setActiveVideoIndex((prev) => prev + 1);
+        }
+      } else if (touchEnd - touchStart > 30) {
+        // Swipe down: move to previous video
+        if (activeVideoIndex > 0) {
+          setActiveVideoIndex((prev) => prev - 1);
+        }
+      }
+      feedRef.current?.removeEventListener("touchend", handleTouchEnd);
+    };
+
+    feedRef.current?.addEventListener("touchend", handleTouchEnd);
+  };
 
   return (
-    <div 
+    <div
       ref={feedRef}
       className={cn(
-        "h-screen overflow-y-scroll snap-y snap-mandatory hide-scrollbar",
+        "h-screen overflow-y-scroll snap-y snap-mandatory hide-scrollbar scroll-smooth",
         className
       )}
+      onTouchStart={handleSwipe}
     >
       {videos.map((video, index) => (
-        <VideoItem 
-          key={video.id} 
-          video={video} 
-          isActive={index === activeVideoIndex} 
+        <VideoItem
+          key={video.id}
+          video={video}
+          isActive={index === activeVideoIndex}
         />
       ))}
     </div>
