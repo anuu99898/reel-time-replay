@@ -83,11 +83,14 @@ export type Database = {
         Row: {
           contact_email: string | null
           contact_phone: string | null
+          content_type: string
           created_at: string | null
           description: string
           id: string
+          idea_type: string
           likes: number | null
           media_url: string | null
+          questions: string[] | null
           shares: number | null
           tags: string[] | null
           thumbnail_url: string | null
@@ -99,11 +102,14 @@ export type Database = {
         Insert: {
           contact_email?: string | null
           contact_phone?: string | null
+          content_type?: string
           created_at?: string | null
           description: string
           id?: string
+          idea_type?: string
           likes?: number | null
           media_url?: string | null
+          questions?: string[] | null
           shares?: number | null
           tags?: string[] | null
           thumbnail_url?: string | null
@@ -115,11 +121,14 @@ export type Database = {
         Update: {
           contact_email?: string | null
           contact_phone?: string | null
+          content_type?: string
           created_at?: string | null
           description?: string
           id?: string
+          idea_type?: string
           likes?: number | null
           media_url?: string | null
+          questions?: string[] | null
           shares?: number | null
           tags?: string[] | null
           thumbnail_url?: string | null
@@ -127,6 +136,45 @@ export type Database = {
           type?: string
           updated_at?: string | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      problem_submissions: {
+        Row: {
+          contact_email: string | null
+          contact_phone: string | null
+          created_at: string
+          description: string
+          id: string
+          questions: string[] | null
+          tags: string[] | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          description: string
+          id?: string
+          questions?: string[] | null
+          tags?: string[] | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          description?: string
+          id?: string
+          questions?: string[] | null
+          tags?: string[] | null
+          title?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
