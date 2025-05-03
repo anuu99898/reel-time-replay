@@ -1,28 +1,30 @@
 
-import React, { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useAuth } from "@/providers/AuthProvider";
+import { supabase } from "@/integrations/supabase/client";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/sonner";
-import { Upload, Image, Video, X, Plus, File, FileText } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { v4 as uuidv4 } from "uuid";
-import { Card, CardContent } from "@/components/ui/card";
 import { SubmissionType, ContentType, QuestionItem } from "@/types/submission";
-import { useAuth } from "@/providers/AuthProvider";
+import { Card, CardContent } from "@/components/ui/card";
+import { Upload, Image, Video, X, Plus, File, FileText, ArrowLeft } from "lucide-react";
+import { v4 as uuidv4 } from "uuid";
 
-const UploadPage = () => {
+const EditSubmission = () => {
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmissionLoading, setIsSubmissionLoading] = useState(true);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [fileType, setFileType] = useState<"image" | "video" | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
-  // New state for enhanced functionality
   const [submissionType, setSubmissionType] = useState<SubmissionType>("idea");
   const [contentType, setContentType] = useState<ContentType>("video");
   const [questions, setQuestions] = useState<QuestionItem[]>([{ id: uuidv4(), text: '' }]);
@@ -35,13 +37,80 @@ const UploadPage = () => {
     tags: "",
   });
 
-  // Check if user is logged in
   useEffect(() => {
     if (!user) {
-      toast.error("Please login to upload ideas or problems");
+      toast.error("Please login to edit submissions");
       navigate("/login");
+      return;
     }
-  }, [user, navigate]);
+    
+    const fetchSubmission = async () => {
+      if (!id) return;
+      
+      try {
+        setIsSubmissionLoading(true);
+        
+        const { data, error } = await supabase
+          .from("ideas")
+          .select("*")
+          .eq("id", id)
+          .single();
+          
+        if (error) throw error;
+        
+        if (!data) {
+          toast.error("Submission not found");
+          navigate("/profile");
+          return;
+        }
+        
+        // Check if user owns this submission
+        if (data.user_id !== user.id) {
+          toast.error("You don't have permission to edit this submission");
+          navigate("/profile");
+          return;
+        }
+        
+        // Set form data
+        setSubmissionType(data.idea_type as SubmissionType);
+        setContentType(data.content_type as ContentType);
+        
+        setFormData({
+          title: data.title || "",
+          description: data.description || "",
+          contactEmail: data.contact_email || "",
+          contactPhone: data.contact_phone || "",
+          tags: data.tags ? data.tags.join(", ") : "",
+        });
+        
+        // Set questions if any
+        if (data.questions && data.questions.length > 0) {
+          setQuestions(data.questions.map((q: string) => ({ 
+            id: uuidv4(), 
+            text: q 
+          })));
+        }
+        
+        // Set preview if media exists
+        if (data.media_url) {
+          setPreviewUrl(data.media_url);
+          setFileType(data.type === "video" ? "video" : "image");
+        } else if (data.thumbnail_url) {
+          setPreviewUrl(data.thumbnail_url);
+          setFileType("image");
+        }
+        
+      } catch (error: any) {
+        console.error("Error fetching submission:", error);
+        toast.error("Failed to load submission");
+        navigate("/profile");
+      } finally {
+        setIsSubmissionLoading(false);
+      }
+    };
+    
+    fetchSubmission();
+  }, [id, user, navigate]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -146,21 +215,8 @@ const UploadPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // For card content type, we need an image if no file is selected
-    if (submissionType === 'idea' && contentType === 'card' && !selectedFile) {
-      toast.error("Please select an image for your idea card");
-      return;
-    }
-    
-    // For video content type, we need a video file
-    if (submissionType === 'idea' && contentType === 'video' && (!selectedFile || fileType !== 'video')) {
-      toast.error("Please select a video file for your video idea");
-      return;
-    }
-    
-    if (!user) {
-      toast.error("You must be logged in to upload an idea or problem");
-      navigate("/login");
+    if (!id || !user) {
+      toast.error("Missing submission ID or user data");
       return;
     }
 
@@ -169,7 +225,7 @@ const UploadPage = () => {
     try {
       let mediaUrl = null;
       
-      // Only upload file if one is selected (required for ideas, optional for problems)
+      // Only upload file if one is selected
       if (selectedFile) {
         mediaUrl = await uploadFileToStorage(
           selectedFile, 
@@ -185,104 +241,126 @@ const UploadPage = () => {
         .filter(q => q.text.trim() !== '')
         .map(q => q.text.trim());
       
-      // Insert idea record to database
-      const { data, error: ideaError } = await supabase
-        .from('ideas')
-        .insert([
-          {
-            title: formData.title,
-            description: formData.description,
-            type: fileType || 'image', // Default to image if no file type
-            content_type: contentType,
-            idea_type: submissionType,
-            media_url: mediaUrl,
-            thumbnail_url: fileType === 'image' ? mediaUrl : null,
-            contact_email: formData.contactEmail,
-            contact_phone: formData.contactPhone,
-            user_id: user.id,
-            tags: tagsArray,
-            questions: filteredQuestions
-          }
-        ])
-        .select('id')
-        .single();
+      // Update submission record
+      const updateData: any = {
+        title: formData.title,
+        description: formData.description,
+        idea_type: submissionType,
+        content_type: contentType,
+        contact_email: formData.contactEmail,
+        contact_phone: formData.contactPhone,
+        tags: tagsArray,
+        questions: filteredQuestions,
+        updated_at: new Date().toISOString()
+      };
       
-      if (ideaError) {
-        throw ideaError;
+      // Only update media URLs if new file was uploaded
+      if (mediaUrl) {
+        if (fileType === 'video') {
+          updateData.media_url = mediaUrl;
+          updateData.type = 'video';
+        } else {
+          if (contentType === 'card') {
+            updateData.thumbnail_url = mediaUrl;
+            updateData.type = 'image';
+          } else {
+            updateData.media_url = mediaUrl;
+            updateData.type = 'video';
+          }
+        }
       }
       
-      toast.success(`Your ${submissionType === 'idea' ? 'idea' : 'problem'} has been uploaded successfully!`);
-      navigate("/");
+      const { error } = await supabase
+        .from('ideas')
+        .update(updateData)
+        .eq('id', id);
+      
+      if (error) throw error;
+      
+      toast.success("Your submission has been updated successfully!");
+      navigate("/profile");
       
     } catch (error: any) {
-      console.error('Error uploading submission:', error);
-      toast.error(`Failed to upload: ${error.message || "Please try again"}`);
+      console.error('Error updating submission:', error);
+      toast.error(`Failed to update: ${error.message || "Please try again"}`);
     } finally {
       setIsLoading(false);
     }
   };
+
+  if (isSubmissionLoading) {
+    return (
+      <div className="min-h-screen bg-black text-white pt-16 pb-16 px-4">
+        <div className="max-w-2xl mx-auto">
+          <div className="flex items-center justify-center h-[80vh]">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-yellow-400"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black text-white pt-16 pb-16 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-2xl font-bold">
-            {submissionType === 'idea' ? 'Upload Your Idea' : 'Submit a Problem'}
+            Edit {submissionType === 'idea' ? 'Idea' : 'Problem'}
           </h1>
           <Button variant="ghost" onClick={() => navigate(-1)} className="text-gray-400">
-            Cancel
+            <ArrowLeft size={18} className="mr-2" /> Back
           </Button>
         </div>
         
-        {/* Submission Type Selection */}
-        <div className="flex gap-4 mb-8">
-          <Button
-            variant={submissionType === 'idea' ? 'default' : 'outline'}
-            className={submissionType === 'idea' ? 'bg-yellow-400 hover:bg-yellow-500 text-black' : ''}
-            onClick={() => setSubmissionType('idea')}
-          >
-            Share an Idea
-          </Button>
-          <Button
-            variant={submissionType === 'problem' ? 'default' : 'outline'}
-            className={submissionType === 'problem' ? 'bg-yellow-400 hover:bg-yellow-500 text-black' : ''}
-            onClick={() => setSubmissionType('problem')}
-          >
-            Submit a Problem
-          </Button>
-        </div>
-
-        {/* Content Type Selection (only for ideas) */}
-        {submissionType === 'idea' && (
-          <div className="mb-8">
-            <Label className="block mb-2">How do you want to present your idea?</Label>
-            <div className="grid grid-cols-2 gap-4">
-              <Card 
-                className={`cursor-pointer border ${contentType === 'video' ? 'border-yellow-400 bg-black' : 'border-gray-700 bg-gray-900'}`}
-                onClick={() => setContentType('video')}
-              >
-                <CardContent className="flex flex-col items-center justify-center p-6">
-                  <Video className="h-10 w-10 mb-3 text-yellow-400" />
-                  <h3 className="font-semibold">Video</h3>
-                  <p className="text-xs text-gray-400 text-center mt-1">Share your idea through video</p>
-                </CardContent>
-              </Card>
-              <Card 
-                className={`cursor-pointer border ${contentType === 'card' ? 'border-yellow-400 bg-black' : 'border-gray-700 bg-gray-900'}`}
-                onClick={() => setContentType('card')}
-              >
-                <CardContent className="flex flex-col items-center justify-center p-6">
-                  <FileText className="h-10 w-10 mb-3 text-yellow-400" />
-                  <h3 className="font-semibold">Idea Card</h3>
-                  <p className="text-xs text-gray-400 text-center mt-1">Use text with an optional image</p>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        )}
-
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* File Upload - Only show for video ideas or card ideas with images */}
+          {/* Type Selection - Read only in edit mode */}
+          <div className="flex gap-4 mb-8 opacity-70">
+            <Button
+              type="button"
+              variant={submissionType === 'idea' ? 'default' : 'outline'}
+              className={submissionType === 'idea' ? 'bg-yellow-400 hover:bg-yellow-500 text-black cursor-not-allowed' : 'cursor-not-allowed'}
+              disabled
+            >
+              Idea
+            </Button>
+            <Button
+              type="button"
+              variant={submissionType === 'problem' ? 'default' : 'outline'}
+              className={submissionType === 'problem' ? 'bg-yellow-400 hover:bg-yellow-500 text-black cursor-not-allowed' : 'cursor-not-allowed'}
+              disabled
+            >
+              Problem
+            </Button>
+          </div>
+
+          {/* Content Type Selection - Read only in edit mode */}
+          {submissionType === 'idea' && (
+            <div className="mb-8 opacity-70">
+              <Label className="block mb-2">Presentation Type</Label>
+              <div className="grid grid-cols-2 gap-4">
+                <Card 
+                  className={`cursor-not-allowed border ${contentType === 'video' ? 'border-yellow-400 bg-black' : 'border-gray-700 bg-gray-900'}`}
+                >
+                  <CardContent className="flex flex-col items-center justify-center p-6">
+                    <Video className="h-10 w-10 mb-3 text-yellow-400" />
+                    <h3 className="font-semibold">Video</h3>
+                    <p className="text-xs text-gray-400 text-center mt-1">Video presentation</p>
+                  </CardContent>
+                </Card>
+                <Card 
+                  className={`cursor-not-allowed border ${contentType === 'card' ? 'border-yellow-400 bg-black' : 'border-gray-700 bg-gray-900'}`}
+                >
+                  <CardContent className="flex flex-col items-center justify-center p-6">
+                    <FileText className="h-10 w-10 mb-3 text-yellow-400" />
+                    <h3 className="font-semibold">Idea Card</h3>
+                    <p className="text-xs text-gray-400 text-center mt-1">Text with image</p>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          )}
+
+          {/* File Upload */}
           {(submissionType === 'idea' && (contentType === 'video' || contentType === 'card')) && (
             <div className="flex flex-col items-center">
               <input
@@ -333,7 +411,7 @@ const UploadPage = () => {
             </div>
           )}
 
-          {/* Idea/Problem Details */}
+          {/* Submission Details */}
           <div className="space-y-4">
             <div>
               <Label htmlFor="title">Title</Label>
@@ -342,7 +420,7 @@ const UploadPage = () => {
                 name="title"
                 value={formData.title}
                 onChange={handleInputChange}
-                placeholder={`Name your ${submissionType}`}
+                placeholder="Name your submission"
                 className="bg-gray-800 border-gray-700 mt-1"
                 required
               />
@@ -355,7 +433,7 @@ const UploadPage = () => {
                 name="description"
                 value={formData.description}
                 onChange={handleInputChange}
-                placeholder={`Explain your ${submissionType} in detail...`}
+                placeholder="Explain in detail..."
                 className="bg-gray-800 border-gray-700 min-h-[120px] mt-1"
                 required
               />
@@ -368,7 +446,7 @@ const UploadPage = () => {
                   id="contactEmail"
                   name="contactEmail"
                   type="email"
-                  value={formData.contactEmail || (user?.email || "")}
+                  value={formData.contactEmail}
                   onChange={handleInputChange}
                   placeholder="your@email.com"
                   className="bg-gray-800 border-gray-700 mt-1"
@@ -381,7 +459,7 @@ const UploadPage = () => {
                 <Input
                   id="contactPhone"
                   name="contactPhone"
-                  value={formData.contactPhone}
+                  value={formData.contactPhone || ""}
                   onChange={handleInputChange}
                   placeholder="+1 (555) 123-4567"
                   className="bg-gray-800 border-gray-700 mt-1"
@@ -401,7 +479,7 @@ const UploadPage = () => {
               />
             </div>
 
-            {/* Questions Section (for problems or ideas that need feedback) */}
+            {/* Questions Section */}
             {(submissionType === 'problem' || 
               (submissionType === 'idea' && contentType === 'card')) && (
               <div className="pt-4 border-t border-gray-800">
@@ -451,7 +529,7 @@ const UploadPage = () => {
             className="w-full py-6 text-lg bg-yellow-400 hover:bg-yellow-500 text-black"
             disabled={isLoading}
           >
-            {isLoading ? "Uploading..." : submissionType === 'idea' ? "Upload Idea" : "Submit Problem"}
+            {isLoading ? "Updating..." : "Update Submission"}
           </Button>
         </form>
       </div>
@@ -459,4 +537,4 @@ const UploadPage = () => {
   );
 };
 
-export default UploadPage;
+export default EditSubmission;

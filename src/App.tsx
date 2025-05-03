@@ -8,6 +8,8 @@ import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import Upload from "./pages/Upload";
 import IdeaDetail from "./pages/IdeaDetail";
+import Profile from "./pages/Profile";
+import EditSubmission from "./pages/EditSubmission";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { AuthProvider } from "./providers/AuthProvider";
 
@@ -25,6 +27,8 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/upload" element={<Upload />} />
             <Route path="/idea/:id" element={<IdeaDetail />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/edit/:id" element={<EditSubmission />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

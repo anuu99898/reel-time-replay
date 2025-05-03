@@ -21,7 +21,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [isMuted, setIsMuted] = useState(true);
+  const [isMuted, setIsMuted] = useState(false); // Default to unmuted
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
 
   // Handle play/pause
@@ -73,8 +73,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const handleVideoLoaded = () => {
     setIsVideoLoaded(true);
     if (autoPlay && inView) {
-      videoRef.current?.play();
-      setIsPlaying(true);
+      videoRef.current?.play()
+        .then(() => setIsPlaying(true))
+        .catch(error => console.error("Video play error:", error));
     }
   };
 

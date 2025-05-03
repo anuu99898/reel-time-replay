@@ -5,7 +5,7 @@ import IdeaActions from "./IdeaActions";
 import ProfilePreview from "./ProfilePreview";
 import CommentSection from "./CommentSection";
 import { cn } from "@/lib/utils";
-import { Music, Lightbulb, Tag, Star } from "lucide-react";
+import { Tag, Star, MessageSquare } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCount } from "@/data/ideas";
 import { useNavigate } from "react-router-dom";
@@ -41,7 +41,7 @@ const IdeaItem: React.FC<IdeaItemProps> = ({ idea, isActive }) => {
     >
       {/* Video or Card display based on idea type */}
       <div 
-        className="absolute inset-0 w-full h-full" 
+        className="absolute inset-0 w-full h-full cursor-pointer" 
         onClick={handleIdeaClick}
       >
         {idea.type === "video" ? (
@@ -54,7 +54,7 @@ const IdeaItem: React.FC<IdeaItemProps> = ({ idea, isActive }) => {
           <div className="absolute inset-0 w-full h-full flex items-center justify-center px-4 py-16 overflow-y-auto">
             <Card className="w-full max-w-md bg-black bg-opacity-80 border border-gray-800 shadow-lg">
               <CardContent className="p-0">
-                {/* Image carousel */}
+                {/* Image for card type idea */}
                 {idea.thumbnailUrl && (
                   <div className="relative w-full h-64 overflow-hidden rounded-t-lg">
                     <img 
@@ -71,39 +71,30 @@ const IdeaItem: React.FC<IdeaItemProps> = ({ idea, isActive }) => {
                   <p className="text-white text-opacity-90 mb-4">{idea.description}</p>
                   
                   {/* Tags */}
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {idea.tags && idea.tags.map((tag) => (
-                      <span 
-                        key={tag}
-                        className="px-2 py-1 bg-gray-800 text-xs text-white rounded-full flex items-center"
-                      >
-                        <Tag size={12} className="mr-1" />
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
+                  {idea.tags && idea.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {idea.tags.map((tag) => (
+                        <span 
+                          key={tag}
+                          className="px-2 py-1 bg-gray-800 text-xs text-white rounded-full flex items-center"
+                        >
+                          <Tag size={12} className="mr-1" />
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   
-                  {/* Ratings */}
-                  {idea.ratings && (
+                  {/* Questions */}
+                  {idea.comments && idea.comments.length > 0 && (
                     <div className="bg-gray-900 p-3 rounded-lg mb-4">
                       <h3 className="text-sm font-semibold text-white mb-2 flex items-center">
-                        <Star size={16} className="mr-1 text-yellow-400" />
-                        Ratings
+                        <MessageSquare size={16} className="mr-1 text-yellow-400" />
+                        Discussion ({idea.comments.length})
                       </h3>
-                      <div className="flex justify-between text-xs">
-                        <div>
-                          <div className="text-white">Practicality</div>
-                          <div className="text-green-500 font-bold">{idea.ratings?.practicality || 0}%</div>
-                        </div>
-                        <div>
-                          <div className="text-white">Innovation</div>
-                          <div className="text-blue-500 font-bold">{idea.ratings?.innovation || 0}%</div>
-                        </div>
-                        <div>
-                          <div className="text-white">Impact</div>
-                          <div className="text-yellow-400 font-bold">{idea.ratings?.impact || 0}%</div>
-                        </div>
-                      </div>
+                      <p className="text-gray-400 text-sm">
+                        Join the conversation and provide feedback
+                      </p>
                     </div>
                   )}
                 </div>
@@ -122,17 +113,19 @@ const IdeaItem: React.FC<IdeaItemProps> = ({ idea, isActive }) => {
             
             {/* Title & Description */}
             <h3 className="text-white text-lg font-bold mb-1">{idea.title}</h3>
-            <p className="text-white text-sm mb-2">{idea.description}</p>
+            <p className="text-white text-sm mb-2 line-clamp-2">{idea.description}</p>
             
             {/* Tags info */}
-            <div className="flex flex-wrap gap-1 mt-2">
-              {idea.tags && idea.tags.slice(0, 3).map((tag) => (
-                <span key={tag} className="text-sm text-gray-300">#{tag} </span>
-              ))}
-              {idea.tags && idea.tags.length > 3 && (
-                <span className="text-sm text-gray-500">+{idea.tags.length - 3} more</span>
-              )}
-            </div>
+            {idea.tags && idea.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {idea.tags.slice(0, 3).map((tag) => (
+                  <span key={tag} className="text-sm text-gray-300">#{tag} </span>
+                ))}
+                {idea.tags.length > 3 && (
+                  <span className="text-sm text-gray-500">+{idea.tags.length - 3} more</span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -177,7 +170,7 @@ const IdeaFeed: React.FC<IdeaFeedProps> = ({ ideas, className }) => {
     const ideaHeight = feedRef.current.clientHeight;
     const index = Math.round(scrollTop / ideaHeight);
     
-    if (index !== activeIdeaIndex) {
+    if (index !== activeIdeaIndex && index < ideas.length) {
       setActiveIdeaIndex(index);
     }
   };
