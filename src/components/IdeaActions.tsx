@@ -1,153 +1,140 @@
-
 import React, { useState } from "react";
-import { Heart, MessageSquare, Share, ThumbsUp, ThumbsDown, Lightbulb } from "lucide-react";
+import {
+  Lightbulb,
+  MessageSquare,
+  Share,
+  ThumbsUp,
+  ThumbsDown,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCount } from "@/data/ideas";
+
+interface Rating {
+  practicality: number;
+  innovation: number;
+  impact: number;
+}
 
 interface IdeaActionsProps {
   likes: number;
   comments: number;
   shares: number;
   onCommentClick: () => void;
-  rating?: {
-    practicality: number;
-    innovation: number;
-    impact: number;
-  };
+  rating?: Rating;
 }
+
+const IconButton = ({
+  onClick,
+  active,
+  icon: Icon,
+  label,
+  activeClass,
+}: {
+  onClick: () => void;
+  active: boolean;
+  icon: React.ElementType;
+  label: string;
+  activeClass: string;
+}) => (
+  <button
+    onClick={onClick}
+    aria-label={label}
+    className="flex flex-col items-center group"
+  >
+    <div
+      className={cn(
+        "w-12 h-12 rounded-full bg-black bg-opacity-50 flex items-center justify-center transition-transform duration-200",
+        active && activeClass,
+        active && "scale-110"
+      )}
+    >
+      <Icon
+        size={20}
+        className={cn(
+          "transition-colors",
+          active ? activeClass : "text-white"
+        )}
+      />
+    </div>
+    <span className="text-white text-xs font-semibold mt-1">
+      {label}
+    </span>
+  </button>
+);
 
 const IdeaActions: React.FC<IdeaActionsProps> = ({
   likes: initialLikes,
   comments,
   shares,
   onCommentClick,
-  rating,
 }) => {
   const [liked, setLiked] = useState(false);
   const [likes, setLikes] = useState(initialLikes);
   const [voted, setVoted] = useState<'up' | 'down' | null>(null);
 
   const handleLikeClick = () => {
-    if (liked) {
-      setLikes(likes - 1);
-    } else {
-      setLikes(likes + 1);
-    }
-    setLiked(!liked);
+    setLiked((prev) => {
+      setLikes((count) => count + (prev ? -1 : 1));
+      return !prev;
+    });
   };
 
   const handleVote = (direction: 'up' | 'down') => {
-    if (voted === direction) {
-      setVoted(null);
-    } else {
-      setVoted(direction);
-    }
+    setVoted((prev) => (prev === direction ? null : direction));
   };
 
   const handleShareClick = () => {
-    // In a real app, this would open a share dialog
-    alert("Share functionality would open here!");
+    if (navigator.share) {
+      navigator.share({
+        title: 'Check this idea!',
+        url: window.location.href,
+      });
+    } else {
+      alert("Share functionality would open here!");
+    }
   };
 
   return (
     <div className="flex flex-col items-center gap-4">
-      {/* Light bulb (replaced heart) */}
-      <button
+      <IconButton
         onClick={handleLikeClick}
-        className="flex flex-col items-center"
-      >
-        <div
-          className={cn(
-            "w-12 h-12 rounded-full bg-black bg-opacity-50 flex items-center justify-center",
-            liked && "animate-pulse-scale"
-          )}
-        >
-          <Lightbulb
-            size={20}
-            className={cn(
-              "transition-colors",
-              liked ? "text-yellow-400 fill-yellow-400" : "text-white"
-            )}
-          />
-        </div>
-        <span className="text-white text-xs font-semibold mt-1">
-          {formatCount(likes)}
-        </span>
-      </button>
+        active={liked}
+        icon={Lightbulb}
+        label={formatCount(likes)}
+        activeClass="text-yellow-400 fill-yellow-400"
+      />
 
-      {/* Thumbs up */}
-      <button
+      <IconButton
         onClick={() => handleVote('up')}
-        className="flex flex-col items-center"
-      >
-        <div
-          className={cn(
-            "w-12 h-12 rounded-full bg-black bg-opacity-50 flex items-center justify-center",
-            voted === 'up' && "animate-pulse-scale"
-          )}
-        >
-          <ThumbsUp
-            size={20}
-            className={cn(
-              "transition-colors",
-              voted === 'up' ? "text-green-500 fill-green-500" : "text-white"
-            )}
-          />
-        </div>
-        <span className="text-white text-xs font-semibold mt-1">
-          Promising
-        </span>
-      </button>
+        active={voted === 'up'}
+        icon={ThumbsUp}
+        label="Promising"
+        activeClass="text-green-500 fill-green-500"
+      />
 
-      {/* Thumbs down */}
-      <button
+      <IconButton
         onClick={() => handleVote('down')}
-        className="flex flex-col items-center"
-      >
-        <div
-          className={cn(
-            "w-12 h-12 rounded-full bg-black bg-opacity-50 flex items-center justify-center",
-            voted === 'down' && "animate-pulse-scale"
-          )}
-        >
-          <ThumbsDown
-            size={20}
-            className={cn(
-              "transition-colors",
-              voted === 'down' ? "text-red-500 fill-red-500" : "text-white"
-            )}
-          />
-        </div>
-        <span className="text-white text-xs font-semibold mt-1">
-          Needs work
-        </span>
-      </button>
+        active={voted === 'down'}
+        icon={ThumbsDown}
+        label="Needs work"
+        activeClass="text-red-500 fill-red-500"
+      />
 
-      {/* Comments button */}
-      <button
+      <IconButton
         onClick={onCommentClick}
-        className="flex flex-col items-center"
-      >
-        <div className="w-12 h-12 rounded-full bg-black bg-opacity-50 flex items-center justify-center">
-          <MessageSquare size={20} className="text-white" />
-        </div>
-        <span className="text-white text-xs font-semibold mt-1">
-          {formatCount(comments)}
-        </span>
-      </button>
+        active={false}
+        icon={MessageSquare}
+        label={formatCount(comments)}
+        activeClass=""
+      />
 
-      {/* Share button */}
-      <button
+      <IconButton
         onClick={handleShareClick}
-        className="flex flex-col items-center"
-      >
-        <div className="w-12 h-12 rounded-full bg-black bg-opacity-50 flex items-center justify-center">
-          <Share size={20} className="text-white" />
-        </div>
-        <span className="text-white text-xs font-semibold mt-1">
-          {formatCount(shares)}
-        </span>
-      </button>
+        active={false}
+        icon={Share}
+        label={formatCount(shares)}
+        activeClass=""
+      />
     </div>
   );
 };
