@@ -63,7 +63,7 @@ const IdeaActions: React.FC<IdeaActionsProps> = ({
           )}
         >
           <Lightbulb
-            size={28}
+            size={20}
             className={cn(
               "transition-colors",
               liked ? "text-yellow-400 fill-yellow-400" : "text-white"
@@ -87,7 +87,7 @@ const IdeaActions: React.FC<IdeaActionsProps> = ({
           )}
         >
           <ThumbsUp
-            size={24}
+            size={20}
             className={cn(
               "transition-colors",
               voted === 'up' ? "text-green-500 fill-green-500" : "text-white"
@@ -111,7 +111,7 @@ const IdeaActions: React.FC<IdeaActionsProps> = ({
           )}
         >
           <ThumbsDown
-            size={24}
+            size={20}
             className={cn(
               "transition-colors",
               voted === 'down' ? "text-red-500 fill-red-500" : "text-white"
@@ -129,7 +129,7 @@ const IdeaActions: React.FC<IdeaActionsProps> = ({
         className="flex flex-col items-center"
       >
         <div className="w-12 h-12 rounded-full bg-black bg-opacity-50 flex items-center justify-center">
-          <MessageSquare size={24} className="text-white" />
+          <MessageSquare size={20} className="text-white" />
         </div>
         <span className="text-white text-xs font-semibold mt-1">
           {formatCount(comments)}
@@ -142,7 +142,7 @@ const IdeaActions: React.FC<IdeaActionsProps> = ({
         className="flex flex-col items-center"
       >
         <div className="w-12 h-12 rounded-full bg-black bg-opacity-50 flex items-center justify-center">
-          <Share size={24} className="text-white" />
+          <Share size={20} className="text-white" />
         </div>
         <span className="text-white text-xs font-semibold mt-1">
           {formatCount(shares)}
