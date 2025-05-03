@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Comment as CommentType, User, formatCount } from "@/data/ideas";
 import { Heart, X, Send, Lightbulb } from "lucide-react";
@@ -59,21 +58,34 @@ const Comment: React.FC<CommentProps> = ({ comment }) => {
 interface CommentSectionProps {
   comments: CommentType[];
   onClose: () => void;
-  currentUser?: User; // In a real app, this would be the logged-in user
+  currentUser?: User | null; // In a real app, this would be the logged-in user
+  onCommentSubmit?: (text: string) => void;
 }
 
 const CommentSection: React.FC<CommentSectionProps> = ({
   comments,
   onClose,
   currentUser,
+  onCommentSubmit,
 }) => {
   const [commentText, setCommentText] = useState("");
   const [commentsList, setCommentsList] = useState(comments);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmitComment = () => {
-    if (!commentText.trim() || !currentUser) return;
-
-    // In a real app, this would send a request to the backend
+  const handleSubmitComment = async () => {
+    if (!commentText.trim() || !currentUser || isSubmitting) return;
+    
+    setIsSubmitting(true);
+    
+    // If we have an external handler, use it
+    if (onCommentSubmit) {
+      await onCommentSubmit(commentText);
+      setCommentText("");
+      setIsSubmitting(false);
+      return;
+    }
+    
+    // Otherwise handle locally (fallback for demo purposes)
     const newComment: CommentType = {
       id: `comment${Date.now()}`,
       user: currentUser,
@@ -84,6 +96,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({
 
     setCommentsList([newComment, ...commentsList]);
     setCommentText("");
+    setIsSubmitting(false);
   };
 
   return (
@@ -102,28 +115,49 @@ const CommentSection: React.FC<CommentSectionProps> = ({
 
         {/* Comments list */}
         <div className="flex-1 overflow-y-auto p-4">
-          {commentsList.map((comment) => (
-            <Comment key={comment.id} comment={comment} />
-          ))}
+          {commentsList.length > 0 ? (
+            commentsList.map((comment) => (
+              <Comment key={comment.id} comment={comment} />
+            ))
+          ) : (
+            <div className="text-center py-8 text-gray-400">
+              <p>No comments yet</p>
+              <p className="text-sm mt-1">Be the first to share your thoughts!</p>
+            </div>
+          )}
         </div>
 
         {/* Comment input */}
         <div className="p-4 border-t border-gray-800 flex items-center gap-2">
-          <input
-            type="text"
-            className="flex-1 p-2 border border-gray-700 rounded-full bg-transparent text-white"
-            placeholder="Share your thoughts on this idea..."
-            value={commentText}
-            onChange={(e) => setCommentText(e.target.value)}
-          />
-          <Button 
-            onClick={handleSubmitComment}
-            size="icon"
-            variant="ghost"
-            disabled={!commentText.trim()}
-          >
-            <Send size={20} className={commentText.trim() ? "text-yellow-400" : ""} />
-          </Button>
+          {currentUser ? (
+            <>
+              <input
+                type="text"
+                className="flex-1 p-2 border border-gray-700 rounded-full bg-transparent text-white"
+                placeholder="Share your thoughts on this idea..."
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                disabled={isSubmitting}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter' && commentText.trim()) {
+                    handleSubmitComment();
+                  }
+                }}
+              />
+              <Button 
+                onClick={handleSubmitComment}
+                size="icon"
+                variant="ghost"
+                disabled={!commentText.trim() || isSubmitting}
+              >
+                <Send size={20} className={commentText.trim() ? "text-yellow-400" : ""} />
+              </Button>
+            </>
+          ) : (
+            <div className="w-full text-center text-gray-400">
+              Please login to comment
+            </div>
+          )}
         </div>
       </div>
     </div>

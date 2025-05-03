@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Mail, Phone, ArrowLeft, MessageSquare, Heart, Share2, Edit, Trash2 } from "lucide-react";
+import { Mail, Phone, ArrowLeft, MessageSquare, Heart, Share2, Edit, Trash2, AlertTriangle } from "lucide-react";
 import CommentSection from "@/components/CommentSection";
 import { toast } from "@/components/ui/sonner";
 import { useAuth } from "@/providers/AuthProvider";
@@ -32,6 +32,7 @@ const IdeaDetail = () => {
   const [isOwner, setIsOwner] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [similarIdeas, setSimilarIdeas] = useState<any[]>([]);
+  const [commentsList, setCommentsList] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchIdeaDetails = async () => {
@@ -91,13 +92,14 @@ const IdeaDetail = () => {
               username: comment.profiles?.username || "Anonymous",
               avatar: comment.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${comment.user_id || "anon"}`,
               name: comment.profiles?.full_name || "Anonymous User",
+              followers: 0,
+              following: 0,
+              bio: ""
             },
             likes: 0
           }));
           
-          ideaData.comments = formattedComments;
-        } else {
-          ideaData.comments = [];
+          setCommentsList(formattedComments);
         }
         
         // Fetch similar ideas based on tags
@@ -162,6 +164,48 @@ const IdeaDetail = () => {
     }
   };
 
+  const handleCommentSubmit = async (text: string) => {
+    if (!user || !id || !text.trim()) return;
+    
+    try {
+      // Insert comment into database
+      const { data, error } = await supabase
+        .from("comments")
+        .insert({
+          idea_id: id,
+          user_id: user.id,
+          text: text.trim()
+        })
+        .select("*, profiles(*)");
+        
+      if (error) throw error;
+      
+      if (data && data[0]) {
+        const newComment = {
+          id: data[0].id,
+          text: data[0].text,
+          timestamp: "Just now",
+          user: {
+            id: user.id,
+            username: user.email?.split('@')[0] || "User",
+            avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${user.email}`,
+            name: user.email?.split('@')[0] || "User",
+            followers: 0,
+            following: 0,
+            bio: ""
+          },
+          likes: 0
+        };
+        
+        setCommentsList([newComment, ...commentsList]);
+        toast.success("Comment added successfully");
+      }
+    } catch (error: any) {
+      console.error("Error adding comment:", error);
+      toast.error("Failed to add comment");
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
@@ -177,6 +221,9 @@ const IdeaDetail = () => {
   const practicality = ratings?.practicality || 0;
   const innovation = ratings?.innovation || 0;
   const impact = ratings?.impact || 0;
+
+  // Check if this is a problem-based submission
+  const hasProblem = idea.questions && idea.questions.length > 0;
 
   return (
     <div className="min-h-screen bg-black text-white pt-16 pb-16 px-4">
@@ -194,14 +241,22 @@ const IdeaDetail = () => {
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
           {/* Main content */}
           <div className="lg:col-span-3">
+            {/* Problem indicator */}
+            {hasProblem && (
+              <div className="bg-yellow-400 text-black px-3 py-1 rounded-full inline-flex items-center mb-3">
+                <AlertTriangle size={16} className="mr-1" />
+                <span className="font-medium">Problem needs solutions</span>
+              </div>
+            )}
+            
             {/* Media */}
             <div className="rounded-lg overflow-hidden bg-gray-900 mb-4">
-              {idea.type === "video" ? (
+              {idea.content_type === "video" ? (
                 <video 
                   src={idea.media_url} 
                   poster={idea.thumbnail_url} 
                   controls 
-                  className="w-full"
+                  className="w-full object-contain max-h-[70vh]"
                 />
               ) : (
                 <img 
@@ -284,16 +339,16 @@ const IdeaDetail = () => {
                   className="text-sm"
                 >
                   <MessageSquare size={16} className="mr-2" />
-                  {idea.comments && idea.comments.length > 0
-                    ? `View all (${idea.comments.length})`
+                  {commentsList && commentsList.length > 0
+                    ? `View all (${commentsList.length})`
                     : "Add feedback"}
                 </Button>
               </div>
 
               {/* Display few comments */}
-              {idea.comments && idea.comments.length > 0 ? (
+              {commentsList && commentsList.length > 0 ? (
                 <div className="space-y-4 mt-4">
-                  {idea.comments.slice(0, 2).map((comment: any) => (
+                  {commentsList.slice(0, 2).map((comment: any) => (
                     <div key={comment.id} className="flex gap-3 p-3 bg-gray-800 rounded-lg">
                       <Avatar className="w-8 h-8">
                         <AvatarImage src={comment.user.avatar} alt={comment.user.username} />
@@ -316,22 +371,26 @@ const IdeaDetail = () => {
               )}
             </div>
 
-            {showComments && idea.comments && (
+            {showComments && (
               <CommentSection
-                comments={idea.comments}
+                comments={commentsList}
                 onClose={() => setShowComments(false)}
                 currentUser={user ? {
                   id: user.id,
                   username: user.email?.split('@')[0] || 'User',
                   avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${user.email}`,
                   name: user.email?.split('@')[0] || 'User',
+                  followers: 0,
+                  following: 0,
+                  bio: ''
                 } : null}
+                onCommentSubmit={handleCommentSubmit}
               />
             )}
           </div>
 
           {/* Sidebar */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-6 lg:mt-8">
             {/* Creator card */}
             <Card className="bg-gray-800 border-gray-700">
               <CardContent className="p-6">

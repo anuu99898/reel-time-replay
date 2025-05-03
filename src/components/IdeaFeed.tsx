@@ -5,11 +5,12 @@ import IdeaActions from "./IdeaActions";
 import ProfilePreview from "./ProfilePreview";
 import CommentSection from "./CommentSection";
 import { cn } from "@/lib/utils";
-import { Tag, Star, MessageSquare } from "lucide-react";
+import { Tag, Star, MessageSquare, AlertTriangle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCount } from "@/data/ideas";
 import { useNavigate } from "react-router-dom";
 import { IdeaProps } from "@/types/idea";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface IdeaItemProps {
   idea: IdeaProps;
@@ -20,6 +21,7 @@ const IdeaItem: React.FC<IdeaItemProps> = ({ idea, isActive }) => {
   const [showComments, setShowComments] = useState(false);
   const ideaRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   const handleIdeaClick = (e: React.MouseEvent) => {
     // Prevent navigation when clicking on interactive elements
@@ -33,6 +35,9 @@ const IdeaItem: React.FC<IdeaItemProps> = ({ idea, isActive }) => {
     }
     navigate(`/idea/${idea.id}`);
   };
+
+  // Check if this is a problem-based submission
+  const hasProblem = idea.questions && idea.questions.length > 0;
 
   return (
     <div
@@ -104,14 +109,27 @@ const IdeaItem: React.FC<IdeaItemProps> = ({ idea, isActive }) => {
         )}
       </div>
 
+      {/* Problem indicator - top overlay */}
+      {hasProblem && (
+        <div className="absolute top-4 left-4 z-30">
+          <div className="bg-yellow-400 text-black px-3 py-1 rounded-full flex items-center shadow-lg">
+            <AlertTriangle size={16} className="mr-1" />
+            <span className="font-medium">Problem needs solutions</span>
+          </div>
+        </div>
+      )}
+
       {/* Idea info - bottom overlay */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black to-transparent z-10" onClick={handleIdeaClick}>
-        <div className="flex">
-          <div className="flex-1 pr-16">
-            {/* User info */}
-            <ProfilePreview user={idea.user} className="mb-4" />
-            
-            {/* Title & Description */}
+      <div className={cn(
+        "absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black to-transparent z-10",
+        isMobile ? "pt-20" : "pt-16"  // Extra padding to ensure content is visible on mobile
+      )} onClick={handleIdeaClick}>
+        <div className="flex flex-col">
+          {/* User info */}
+          <ProfilePreview user={idea.user} className="mb-3" />
+          
+          {/* Title & Description */}
+          <div className="pr-16">
             <h3 className="text-white text-lg font-bold mb-1">{idea.title}</h3>
             <p className="text-white text-sm mb-2 line-clamp-2">{idea.description}</p>
             

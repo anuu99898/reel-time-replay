@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Play, Pause, Volume2, VolumeX } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface VideoPlayerProps {
   videoUrl: string;
@@ -21,8 +22,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [isMuted, setIsMuted] = useState(false); // Default to unmuted
+  const [isMuted, setIsMuted] = useState(false);
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
+  const isMobile = useIsMobile();
 
   // Handle play/pause
   const togglePlay = () => {
@@ -31,7 +33,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     if (isPlaying) {
       videoRef.current.pause();
     } else {
-      videoRef.current.play();
+      videoRef.current.play().catch(error => {
+        console.error("Video play error:", error);
+        // Some browsers require user interaction before playing videos with audio
+        if (videoRef.current) {
+          videoRef.current.muted = true;
+          setIsMuted(true);
+          videoRef.current.play().catch(err => console.error("Still can't play:", err));
+        }
+      });
     }
     setIsPlaying(!isPlaying);
   };
@@ -75,7 +85,17 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     if (autoPlay && inView) {
       videoRef.current?.play()
         .then(() => setIsPlaying(true))
-        .catch(error => console.error("Video play error:", error));
+        .catch(error => {
+          console.error("Video play error:", error);
+          // Try with muted (autoplay policy often requires muted)
+          if (videoRef.current) {
+            videoRef.current.muted = true;
+            setIsMuted(true);
+            videoRef.current.play()
+              .then(() => setIsPlaying(true))
+              .catch(err => console.error("Still can't autoplay:", err));
+          }
+        });
     }
   };
 
@@ -86,7 +106,17 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     if (inView) {
       videoRef.current.play()
         .then(() => setIsPlaying(true))
-        .catch(error => console.error("Video play error:", error));
+        .catch(error => {
+          console.error("Video play error:", error);
+          // Try with muted (autoplay policy often requires muted)
+          if (videoRef.current) {
+            videoRef.current.muted = true;
+            setIsMuted(true);
+            videoRef.current.play()
+              .then(() => setIsPlaying(true))
+              .catch(err => console.error("Still can't play in view:", err));
+          }
+        });
     } else {
       videoRef.current.pause();
       setIsPlaying(false);
@@ -99,7 +129,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       <video
         ref={videoRef}
         src={videoUrl}
-        className="w-full h-full object-cover"
+        className="w-full h-full object-contain md:object-cover"
         loop
         playsInline
         muted={isMuted}
@@ -107,6 +137,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         onEnded={handleVideoEnd}
         onLoadedData={handleVideoLoaded}
         onClick={togglePlay}
+        style={{ 
+          maxHeight: '100%',
+          maxWidth: '100%'
+        }}
       />
 
       {/* Play/Pause overlay */}
@@ -135,7 +169,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
           {/* Play/Pause button */}
           <button 
             onClick={togglePlay} 
-            className="text-white hover:text-tiktok-red transition-colors"
+            className="text-white hover:text-yellow-400 transition-colors"
           >
             {isPlaying ? <Pause size={20} /> : <Play size={20} />}
           </button>
@@ -143,7 +177,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
           {/* Mute/Unmute button */}
           <button 
             onClick={toggleMute} 
-            className="text-white hover:text-tiktok-red transition-colors"
+            className="text-white hover:text-yellow-400 transition-colors"
           >
             {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
           </button>
