@@ -1,130 +1,128 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('[https://fonts.googleapis.com/css2?family=Inter\:wght@400;500;600;700\&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap)');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /*===============================================
-=            Root Theme Variables               =
-===============================================*/
+\=            Root Theme Variables               =
+\===============================================*/
 
 @layer base {
-  :root {
-    /* Base Colors */
-    --background: 0 0% 98%; /* Light background for a clean look */
-    --foreground: 0 0% 15%; /* Dark text for readability */
-    
-    /* Cards & Popovers */
-    --card: 0 0% 95%; /* Lighter card background */
-    --card-foreground: 0 0% 15%; /* Dark text on cards for contrast */
-    --popover: 0 0% 92%; /* Light popover background */
-    --popover-foreground: 0 0% 15%; /* Dark text on popovers */
-    
-    /* Brand Colors */
-    --primary: 210 100% 50%; /* Bright blue for energetic, trustworthy vibes */
-    --primary-foreground: 0 0% 100%; /* White text on primary elements */
-    --secondary: 164 100% 41%; /* Green for fresh, innovative accents */
-    --secondary-foreground: 0 0% 100%; /* White text on secondary elements */
+\:root {
+/\* Base Colors \*/
+\--background: 0 0% 7%;
+\--foreground: 0 0% 100%;
 
-    /* UI Neutral Colors */
-    --muted: 0 0% 60%; /* Neutral gray for non-primary elements */
-    --muted-foreground: 0 0% 20%; /* Darker text for muted elements */
-    --accent: 34 80% 55%; /* Vibrant yellow for accents and highlights */
-    --accent-foreground: 0 0% 100%; /* White text on accent elements */
+```
+/* Cards & Popovers */
+--card: 0 0% 10%;
+--card-foreground: 0 0% 100%;
+--popover: 0 0% 10%;
+--popover-foreground: 0 0% 100%;
 
-    /* Feedback Colors */
-    --destructive: 0 84% 58%; /* Red for destructive actions or errors */
-    --destructive-foreground: 0 0% 100%; /* White text on destructive actions */
+/* Brand Colors */
+--primary: 45 100% 60%;
+--primary-foreground: 0 0% 10%;
+--secondary: 183 89% 54%;
+--secondary-foreground: 0 0% 10%;
 
-    --success: 120 60% 45%; /* Green for success or positive actions */
-    --success-foreground: 0 0% 100%; /* White text on success elements */
+/* UI Neutral Colors */
+--muted: 0 0% 20%;
+--muted-foreground: 0 0% 70%;
+--accent: 0 0% 15%;
+--accent-foreground: 0 0% 100%;
 
-    --warning: 45 100% 60%; /* Yellow for warnings */
-    --warning-foreground: 0 0% 100%; /* White text on warning elements */
+/* Feedback Colors */
+--destructive: 0 84.2% 60.2%;
+--destructive-foreground: 0 0% 100%;
 
-    /* Borders and Inputs */
-    --border: 0 0% 80%; /* Soft border color for inputs */
-    --input: 0 0% 80%; /* Slightly muted input field background */
-    --ring: 210 100% 60%; /* Bright blue for input focus */
-    
-    /* Radius */
-    --radius: 0.5rem;
-  }
+/* Borders and Inputs */
+--border: 0 0% 20%;
+--input: 0 0% 20%;
+--ring: 0 0% 15%;
+
+/* Radius */
+--radius: 0.5rem;
+```
+
+}
 }
 
 /*===============================================
-=            Base Element Styling               =
-===============================================*/
+\=            Base Element Styling               =
+\===============================================*/
 
 @layer base {
-  * {
-    @apply border-border;
+
+* {
+  @apply border-border;
   }
 
-  body {
-    @apply bg-background text-foreground font-sans;
-    font-family: 'Inter', sans-serif;
-  }
+body {
+@apply bg-background text-foreground font-sans;
+font-family: 'Inter', sans-serif;
+}
 }
 
 /*===============================================
-=            Utility Enhancements               =
-===============================================*/
+\=            Utility Enhancements               =
+\===============================================*/
 
-/* Hide Scrollbar (Preserve scroll functionality) */
+/\* Hide Scrollbar (Preserve scroll functionality) \*/
 .hide-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+-ms-overflow-style: none;
+scrollbar-width: none;
 }
 .hide-scrollbar::-webkit-scrollbar {
-  display: none;
+display: none;
 }
 
-/* Smooth Transitions for All */
+/\* Smooth Transitions for All \*/
 .transition-all {
-  transition-property: all;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 150ms;
+transition-property: all;
+transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+transition-duration: 150ms;
 }
 
-/* Pulse Scale Animation */
+/\* Pulse Scale Animation \*/
 @keyframes pulse-scale {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.1);
-  }
+0%, 100% {
+transform: scale(1);
+}
+50% {
+transform: scale(1.1);
+}
 }
 .animate-pulse-scale {
-  animation: pulse-scale 0.6s ease-in-out;
+animation: pulse-scale 0.6s ease-in-out;
 }
 
 /*===============================================
-=            Component Utilities                =
-===============================================*/
+\=            Component Utilities                =
+\===============================================*/
 
-/* Video Progress Bar */
+/\* Video Progress Bar \*/
 .video-progress {
-  @apply h-1 rounded-full bg-gray-700 overflow-hidden;
+@apply h-1 rounded-full bg-gray-700 overflow-hidden;
 }
 .video-progress-fill {
-  @apply h-full bg-yellow-400; /* Changed to vibrant yellow for emphasis */
+@apply h-full bg-yellow-400;
 }
 
-/* Rating Bars */
+/\* Rating Bars \*/
 .rating-bar {
-  @apply w-full h-2 rounded-full bg-gray-700 overflow-hidden;
+@apply w-full h-2 rounded-full bg-gray-700 overflow-hidden;
 }
 .rating-bar-fill {
-  @apply h-full;
+@apply h-full;
 }
 .rating-practicality {
-  @apply bg-green-500; /* Green for practicality */
+@apply bg-green-500;
 }
 .rating-innovation {
-  @apply bg-blue-500; /* Blue for innovation */
+@apply bg-blue-500;
 }
 .rating-impact {
-  @apply bg-yellow-400; /* Yellow for impact */
+@apply bg-yellow-400;
 }
