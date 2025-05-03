@@ -11,39 +11,39 @@
 @layer base {
   :root {
     /* Base Colors */
-    --background: 0 0% 98%; /* Soft, light background */
+    --background: 0 0% 98%; /* Light background for a clean look */
     --foreground: 0 0% 15%; /* Dark text for readability */
     
     /* Cards & Popovers */
     --card: 0 0% 95%; /* Lighter card background */
-    --card-foreground: 0 0% 15%; /* Dark text on cards */
+    --card-foreground: 0 0% 15%; /* Dark text on cards for contrast */
     --popover: 0 0% 92%; /* Light popover background */
     --popover-foreground: 0 0% 15%; /* Dark text on popovers */
     
     /* Brand Colors */
-    --primary: 210 100% 50%; /* Bright blue for the primary color */
+    --primary: 210 100% 50%; /* Bright blue for energetic, trustworthy vibes */
     --primary-foreground: 0 0% 100%; /* White text on primary elements */
     --secondary: 164 100% 41%; /* Green for fresh, innovative accents */
     --secondary-foreground: 0 0% 100%; /* White text on secondary elements */
 
     /* UI Neutral Colors */
-    --muted: 0 0% 60%; /* Muted gray for non-primary elements */
-    --muted-foreground: 0 0% 20%; /* Darker text on muted elements */
-    --accent: 34 80% 55%; /* Vibrant orange for highlights */
+    --muted: 0 0% 60%; /* Neutral gray for non-primary elements */
+    --muted-foreground: 0 0% 20%; /* Darker text for muted elements */
+    --accent: 34 80% 55%; /* Vibrant yellow for accents and highlights */
     --accent-foreground: 0 0% 100%; /* White text on accent elements */
 
     /* Feedback Colors */
-    --destructive: 0 84% 58%; /* Red for destructive actions */
+    --destructive: 0 84% 58%; /* Red for destructive actions or errors */
     --destructive-foreground: 0 0% 100%; /* White text on destructive actions */
 
-    --success: 120 60% 45%; /* Green for success feedback */
+    --success: 120 60% 45%; /* Green for success or positive actions */
     --success-foreground: 0 0% 100%; /* White text on success elements */
 
     --warning: 45 100% 60%; /* Yellow for warnings */
     --warning-foreground: 0 0% 100%; /* White text on warning elements */
 
     /* Borders and Inputs */
-    --border: 0 0% 80%; /* Soft borders */
+    --border: 0 0% 80%; /* Soft border color for inputs */
     --input: 0 0% 80%; /* Slightly muted input field background */
     --ring: 210 100% 60%; /* Bright blue for input focus */
     
@@ -109,7 +109,7 @@
   @apply h-1 rounded-full bg-gray-700 overflow-hidden;
 }
 .video-progress-fill {
-  @apply h-full bg-blue-500; /* Updated color to blue */
+  @apply h-full bg-yellow-400; /* Changed to vibrant yellow for emphasis */
 }
 
 /* Rating Bars */
@@ -126,5 +126,5 @@
   @apply bg-blue-500; /* Blue for innovation */
 }
 .rating-impact {
-  @apply bg-orange-500; /* Orange for impact */
+  @apply bg-yellow-400; /* Yellow for impact */
 }
