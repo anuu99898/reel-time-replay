@@ -54,6 +54,23 @@ interface IdeaData {
   user_id: string | null;
 }
 
+// Define the possible question types to help TypeScript
+interface StringQuestion {
+  type: 'string';
+  value: string;
+}
+
+interface ObjectQuestion {
+  type: 'object';
+  question?: string;
+  text?: string;
+  answer?: string;
+  response?: string;
+  [key: string]: any; // Allow for other properties
+}
+
+type QuestionType = StringQuestion | ObjectQuestion | string;
+
 const IdeaDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -550,7 +567,7 @@ const IdeaDetail: React.FC = () => {
                 <TabsContent value="problem" className="pt-4">
                   <h2 className="text-xl font-bold mb-4">Problem Statement</h2>
                   <div className="space-y-4">
-                    {idea.questions.map((question, index) => {
+                    {idea.questions && idea.questions.map((question, index) => {
                       // Handle different question formats
                       let questionText = "";
                       let answerText = "";
@@ -559,9 +576,10 @@ const IdeaDetail: React.FC = () => {
                         questionText = question;
                         answerText = "";
                       } else if (typeof question === 'object' && question !== null) {
-                        // Handle object format that might have question/answer properties
-                        questionText = question.question || question.text || JSON.stringify(question);
-                        answerText = question.answer || question.response || "";
+                        // Use type assertion to help TypeScript understand the structure
+                        const q = question as { [key: string]: any };
+                        questionText = q.question || q.text || JSON.stringify(q);
+                        answerText = q.answer || q.response || "";
                       }
                       
                       return (

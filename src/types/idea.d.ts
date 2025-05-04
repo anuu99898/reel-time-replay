@@ -20,7 +20,7 @@ export interface IdeaProps {
     innovation: number;
     impact: number;
   };
-  questions?: string[];
+  questions?: any[]; // Use any[] to support different question formats
 }
 
 export interface IdeaFeedProps {
