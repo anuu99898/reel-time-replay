@@ -13,6 +13,7 @@ export interface IdeaProps {
   comments: Comment[];
   shares: number;
   timestamp: string;
+  createdAt?: string; // Add this to support both timestamp and createdAt
   tags: string[];
   ratings?: {
     practicality: number;

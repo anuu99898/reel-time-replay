@@ -4,7 +4,7 @@ import { Video as VideoType } from "@/data/videos";
 import VideoPlayer from "./VideoPlayer";
 import VideoActions from "./VideoActions";
 import ProfilePreview from "./ProfilePreview";
-import CommentSection from "./CommentSection";
+import CommentSectionWrapper from "./CommentSectionWrapper";
 import { cn } from "@/lib/utils";
 import { Music } from "lucide-react";
 
@@ -45,8 +45,8 @@ const VideoItem: React.FC<VideoItemProps> = ({ video, isActive }) => {
       </div>
 
       {showComments && (
-        <CommentSection
-          ideaId={video.id || "video-comment"} // Adding ideaId property
+        <CommentSectionWrapper
+          ideaId={video.id}
           comments={video.comments}
           onClose={() => setShowComments(false)}
           currentUser={video.user}

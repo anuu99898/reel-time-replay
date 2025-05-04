@@ -1,9 +1,8 @@
-
 import React, { useState, useRef, useEffect } from "react";
 import VideoPlayer from "./VideoPlayer";
 import IdeaActions from "./IdeaActions";
 import ProfilePreview from "./ProfilePreview";
-import CommentSection from "./CommentSection";
+import CommentSectionWrapper from "./CommentSectionWrapper";
 import { cn } from "@/lib/utils";
 import { Tag, Star, MessageSquare, AlertTriangle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -231,7 +230,7 @@ const IdeaItem: React.FC<IdeaItemProps> = ({ idea, isActive }) => {
 
       {/* Comments modal */}
       {showComments && (
-        <CommentSection
+        <CommentSectionWrapper
           ideaId={idea.id}
           comments={comments}
           onClose={() => setShowComments(false)}

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { IdeaProps } from "@/types/idea";
-import CommentSection from "@/components/CommentSection";
+import CommentSectionWrapper from "@/components/CommentSectionWrapper";
 import { useAuth } from "@/providers/AuthProvider";
 import Header from "@/components/Header";
 import VideoPlayer from "@/components/VideoPlayer";
@@ -31,6 +31,28 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+// Define the shape of what we get from Supabase
+interface IdeaData {
+  id: string;
+  title: string;
+  description: string;
+  type: string;
+  media_url: string | null;
+  thumbnail_url: string | null;
+  likes: number | null;
+  shares: number | null;
+  tags: string[] | null;
+  questions: string[] | null;
+  created_at: string | null;
+  profiles?: {
+    id: string | null;
+    username: string | null;
+    avatar_url: string | null;
+    full_name: string | null;
+  } | null;
+  user_id: string | null;
+}
+
 const IdeaDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -45,7 +67,7 @@ const IdeaDetail: React.FC = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   
   // Fetch idea details
-  const { data: idea, isLoading, error } = useQuery<IdeaProps>({
+  const { data: idea, isLoading, error } = useQuery({
     queryKey: ['idea', id],
     queryFn: async () => {
       if (!id) throw new Error('Idea ID is required');
@@ -67,31 +89,36 @@ const IdeaDetail: React.FC = () => {
       if (error) throw error;
       if (!data) throw new Error('Idea not found');
       
+      const ideaData = data as IdeaData;
+      
       // Transform the data to match IdeaProps
-      return {
-        id: data.id,
-        title: data.title,
-        description: data.description,
-        type: data.type,
-        media: data.media_url,
-        thumbnailUrl: data.thumbnail_url,
-        likes: data.likes_count || 0,
+      const transformedIdea: IdeaProps = {
+        id: ideaData.id,
+        title: ideaData.title,
+        description: ideaData.description,
+        type: ideaData.type as "video" | "image" | "text",
+        media: ideaData.media_url || undefined,
+        thumbnailUrl: ideaData.thumbnail_url || undefined,
+        likes: ideaData.likes || 0,
         comments: [],
-        shares: data.shares_count || 0,
-        ratings: data.average_rating || 0,
-        tags: data.tags || [],
-        createdAt: data.created_at,
+        shares: ideaData.shares || 0,
+        timestamp: ideaData.created_at || new Date().toISOString(),
+        createdAt: ideaData.created_at || undefined,
+        tags: ideaData.tags || [],
+        ratings: undefined, // This will be populated later if needed
         user: {
-          id: data.profiles?.id || '',
-          username: data.profiles?.username || 'Anonymous',
-          avatar: data.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${data.user_id}`,
-          name: data.profiles?.full_name || 'Anonymous User',
+          id: ideaData.profiles?.id || ideaData.user_id || '',
+          username: ideaData.profiles?.username || 'Anonymous',
+          avatar: ideaData.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${ideaData.user_id}`,
+          name: ideaData.profiles?.full_name || 'Anonymous User',
           followers: 0,
           following: 0,
           bio: ''
         },
-        questions: data.questions || []
+        questions: ideaData.questions || []
       };
+      
+      return transformedIdea;
     },
     enabled: !!id
   });
@@ -275,6 +302,25 @@ const IdeaDetail: React.FC = () => {
   // Check if this is a problem-based submission
   const hasProblem = idea.questions && idea.questions.length > 0;
   
+  // Comments modal
+  const commentSection = showComments && (
+    <CommentSectionWrapper
+      ideaId={id || ""}
+      comments={comments}
+      onClose={() => setShowComments(false)}
+      currentUser={user ? {
+        id: user.id,
+        username: user.email?.split('@')[0] || 'User',
+        avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${user.email}`,
+        name: user.email?.split('@')[0] || 'User',
+        followers: 0,
+        following: 0,
+        bio: ''
+      } : null}
+      onCommentSubmit={handleCommentSubmit}
+    />
+  );
+
   return (
     <div className="min-h-screen bg-black text-white">
       <Header />
@@ -538,24 +584,7 @@ const IdeaDetail: React.FC = () => {
         </div>
       </div>
       
-      {/* Comments modal */}
-      {showComments && (
-        <CommentSection
-          ideaId={id || ""}
-          comments={comments}
-          onClose={() => setShowComments(false)}
-          currentUser={user ? {
-            id: user.id,
-            username: user.email?.split('@')[0] || 'User',
-            avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${user.email}`,
-            name: user.email?.split('@')[0] || 'User',
-            followers: 0,
-            following: 0,
-            bio: ''
-          } : null}
-          onCommentSubmit={handleCommentSubmit}
-        />
-      )}
+      {commentSection}
       
       {/* Delete confirmation dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

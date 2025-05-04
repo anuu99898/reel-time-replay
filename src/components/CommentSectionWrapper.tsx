@@ -16,16 +16,11 @@ interface CommentSectionWrapperProps {
   } | null;
   onCommentSubmit?: (text: string) => Promise<any>;
   fetchComments?: () => Promise<void>;
+  ideaId: string; // Make ideaId required
 }
 
-const CommentSectionWrapper: React.FC<CommentSectionWrapperProps & { ideaId?: string }> = (props) => {
-  // Make sure ideaId is always provided
-  const enhancedProps = {
-    ...props,
-    ideaId: props.ideaId || "default-idea-id"
-  };
-  
-  return <CommentSection {...enhancedProps} />;
+const CommentSectionWrapper: React.FC<CommentSectionWrapperProps> = (props) => {
+  return <CommentSection {...props} />;
 };
 
 export default CommentSectionWrapper;
