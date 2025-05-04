@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -42,13 +43,13 @@ interface IdeaData {
   likes: number | null;
   shares: number | null;
   tags: string[] | null;
-  questions: string[] | null;
+  questions: any[] | null; // Change to any[] to handle complex question objects
   created_at: string | null;
   profiles?: {
-    id: string | null;
-    username: string | null;
-    avatar_url: string | null;
-    full_name: string | null;
+    id?: string | null;
+    username?: string | null;
+    avatar_url?: string | null;
+    full_name?: string | null;
   } | null;
   user_id: string | null;
 }
@@ -89,7 +90,8 @@ const IdeaDetail: React.FC = () => {
       if (error) throw error;
       if (!data) throw new Error('Idea not found');
       
-      const ideaData = data as IdeaData;
+      // Cast to any first to avoid TypeScript errors during transformation
+      const ideaData = data as any;
       
       // Transform the data to match IdeaProps
       const transformedIdea: IdeaProps = {
@@ -318,6 +320,31 @@ const IdeaDetail: React.FC = () => {
         bio: ''
       } : null}
       onCommentSubmit={handleCommentSubmit}
+      fetchComments={async () => {
+        if (!id) return;
+        try {
+          const commentsData = await getComments(id);
+          const formattedComments = commentsData.map((comment: any) => ({
+            id: comment.id,
+            text: comment.text,
+            timestamp: new Date(comment.created_at).toLocaleString(),
+            user: {
+              id: comment.profiles?.id || "anonymous",
+              username: comment.profiles?.username || "Anonymous",
+              avatar: comment.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${comment.user_id}`,
+              name: comment.profiles?.full_name || "Anonymous User",
+              followers: 0,
+              following: 0,
+              bio: ""
+            },
+            likes: 0
+          }));
+          
+          setComments(formattedComments);
+        } catch (error) {
+          console.error('Error fetching comments:', error);
+        }
+      }}
     />
   );
 
@@ -494,7 +521,7 @@ const IdeaDetail: React.FC = () => {
                   
                   {/* Created date */}
                   <div className="text-xs text-gray-400">
-                    Posted {new Date(idea.createdAt).toLocaleDateString()}
+                    Posted {new Date(idea.createdAt || idea.timestamp).toLocaleDateString()}
                   </div>
                 </CardContent>
               </Card>
@@ -523,12 +550,27 @@ const IdeaDetail: React.FC = () => {
                 <TabsContent value="problem" className="pt-4">
                   <h2 className="text-xl font-bold mb-4">Problem Statement</h2>
                   <div className="space-y-4">
-                    {idea.questions.map((question, index) => (
-                      <div key={index} className="bg-gray-900 p-4 rounded-lg">
-                        <h3 className="font-medium mb-2">{question.question}</h3>
-                        <p className="text-gray-300">{question.answer}</p>
-                      </div>
-                    ))}
+                    {idea.questions.map((question, index) => {
+                      // Handle different question formats
+                      let questionText = "";
+                      let answerText = "";
+                      
+                      if (typeof question === 'string') {
+                        questionText = question;
+                        answerText = "";
+                      } else if (typeof question === 'object' && question !== null) {
+                        // Handle object format that might have question/answer properties
+                        questionText = question.question || question.text || JSON.stringify(question);
+                        answerText = question.answer || question.response || "";
+                      }
+                      
+                      return (
+                        <div key={index} className="bg-gray-900 p-4 rounded-lg">
+                          <h3 className="font-medium mb-2">{questionText}</h3>
+                          {answerText && <p className="text-gray-300">{answerText}</p>}
+                        </div>
+                      );
+                    })}
                   </div>
                 </TabsContent>
               )}
