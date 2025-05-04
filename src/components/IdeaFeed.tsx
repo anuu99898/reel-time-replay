@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from "react";
+
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import VideoPlayer from "./VideoPlayer";
 import IdeaActions from "./IdeaActions";
 import ProfilePreview from "./ProfilePreview";
@@ -46,7 +47,19 @@ const IdeaItem: React.FC<IdeaItemProps> = ({ idea, isActive }) => {
     try {
       const { data } = await supabase
         .from('comments')
-        .select('*, profiles(*)')
+        .select(`
+          id, 
+          text, 
+          created_at, 
+          user_id, 
+          idea_id,
+          profiles:user_id (
+            id, 
+            username, 
+            avatar_url, 
+            full_name
+          )
+        `)
         .eq('idea_id', idea.id)
         .order('created_at', { ascending: false });
         
@@ -56,7 +69,7 @@ const IdeaItem: React.FC<IdeaItemProps> = ({ idea, isActive }) => {
           text: comment.text,
           timestamp: new Date(comment.created_at).toLocaleString(),
           user: {
-            id: comment.profiles?.id || "anonymous",
+            id: comment.profiles?.id || comment.user_id || "anonymous",
             username: comment.profiles?.username || "Anonymous",
             avatar: comment.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${comment.user_id || "anon"}`,
             name: comment.profiles?.full_name || "Anonymous User",
@@ -107,7 +120,7 @@ const IdeaItem: React.FC<IdeaItemProps> = ({ idea, isActive }) => {
   return (
     <div
       ref={ideaRef}
-      className="snap-start w-full h-full flex items-center justify-center bg-black relative"
+      className="snap-start w-full h-screen flex items-center justify-center bg-black relative"
     >
       {/* Video or Card display based on idea type */}
       <div 
@@ -119,6 +132,7 @@ const IdeaItem: React.FC<IdeaItemProps> = ({ idea, isActive }) => {
             videoUrl={idea.media || ""}
             inView={isActive}
             className="absolute inset-0 w-full h-full"
+            preload="auto"
           />
         ) : (
           <div className="absolute inset-0 w-full h-full flex items-center justify-center px-4 py-16 overflow-y-auto">
@@ -260,36 +274,98 @@ const IdeaFeed: React.FC<IdeaFeedProps> = ({ ideas, className }) => {
   const [activeIdeaIndex, setActiveIdeaIndex] = useState(0);
   const feedRef = useRef<HTMLDivElement>(null);
   
-  // Detect which idea is in view based on scroll position
-  const handleScroll = () => {
+  // Improved scroll handler with debouncing
+  const handleScroll = useCallback(() => {
     if (!feedRef.current) return;
     
-    const scrollTop = feedRef.current.scrollTop;
-    const ideaHeight = feedRef.current.clientHeight;
-    const index = Math.round(scrollTop / ideaHeight);
-    
-    if (index !== activeIdeaIndex && index < ideas.length) {
-      setActiveIdeaIndex(index);
-    }
-  };
+    // Use requestAnimationFrame for smoother scrolling
+    requestAnimationFrame(() => {
+      if (!feedRef.current) return;
+      
+      const scrollTop = feedRef.current.scrollTop;
+      const ideaHeight = feedRef.current.clientHeight;
+      const index = Math.round(scrollTop / ideaHeight);
+      
+      if (index !== activeIdeaIndex && index >= 0 && index < ideas.length) {
+        setActiveIdeaIndex(index);
+      }
+    });
+  }, [activeIdeaIndex, ideas.length]);
 
   useEffect(() => {
     const feedElement = feedRef.current;
-    if (feedElement) {
-      feedElement.addEventListener("scroll", handleScroll);
-      return () => {
-        feedElement.removeEventListener("scroll", handleScroll);
-      };
-    }
-  }, [activeIdeaIndex]);
+    if (!feedElement) return;
+    
+    // Ensure proper initial alignment on component mount
+    const initialScroll = () => {
+      const height = feedElement.clientHeight;
+      feedElement.scrollTo({
+        top: activeIdeaIndex * height,
+        behavior: "auto"
+      });
+    };
+    
+    // Run initial alignment after a small delay to ensure DOM is ready
+    const timer = setTimeout(initialScroll, 100);
+    
+    feedElement.addEventListener("scroll", handleScroll);
+    return () => {
+      clearTimeout(timer);
+      feedElement.removeEventListener("scroll", handleScroll);
+    };
+  }, [handleScroll, activeIdeaIndex]);
+
+  // Improved swipe gesture handling
+  const handleSwipe = useCallback((e: React.TouchEvent) => {
+    if (!feedRef.current) return;
+    const touchStart = e.touches[0].clientY;
+    
+    const handleTouchEnd = (event: TouchEvent) => {
+      const touchEnd = event.changedTouches[0].clientY;
+      const swipeThreshold = 50; // Increased threshold for better detection
+      
+      if (touchStart - touchEnd > swipeThreshold) {
+        // Swipe up: move to next idea
+        if (activeIdeaIndex < ideas.length - 1) {
+          const nextIndex = activeIdeaIndex + 1;
+          setActiveIdeaIndex(nextIndex);
+          
+          // Smooth scroll to next idea
+          feedRef.current?.scrollTo({
+            top: nextIndex * feedRef.current.clientHeight,
+            behavior: "smooth"
+          });
+        }
+      } else if (touchEnd - touchStart > swipeThreshold) {
+        // Swipe down: move to previous idea
+        if (activeIdeaIndex > 0) {
+          const prevIndex = activeIdeaIndex - 1;
+          setActiveIdeaIndex(prevIndex);
+          
+          // Smooth scroll to previous idea
+          feedRef.current?.scrollTo({
+            top: prevIndex * feedRef.current.clientHeight,
+            behavior: "smooth"
+          });
+        }
+      }
+      
+      // Remove the event listener
+      document.removeEventListener("touchend", handleTouchEnd);
+    };
+
+    // Add the event listener using document to capture all touch events
+    document.addEventListener("touchend", handleTouchEnd);
+  }, [activeIdeaIndex, ideas.length]);
 
   return (
     <div 
       ref={feedRef}
       className={cn(
-        "h-screen overflow-y-scroll snap-y snap-mandatory hide-scrollbar",
+        "h-screen overflow-y-scroll snap-y snap-mandatory hide-scrollbar scroll-smooth",
         className
       )}
+      onTouchStart={handleSwipe}
     >
       {ideas.map((idea, index) => (
         <IdeaItem 

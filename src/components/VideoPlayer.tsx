@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from "react";
-import { Play, Pause, Volume2, VolumeX } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -10,6 +10,7 @@ interface VideoPlayerProps {
   inView: boolean;
   onVideoEnd?: () => void;
   className?: string;
+  preload?: "auto" | "metadata" | "none";
 }
 
 const VideoPlayer: React.FC<VideoPlayerProps> = ({
@@ -18,12 +19,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   inView,
   onVideoEnd,
   className,
+  preload = "auto"
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const isMobile = useIsMobile();
 
   // Handle play/pause
@@ -33,6 +36,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     if (isPlaying) {
       videoRef.current.pause();
     } else {
+      // Show loading indicator
+      if (!isVideoLoaded) {
+        setIsLoading(true);
+      }
+      
       videoRef.current.play().catch(error => {
         console.error("Video play error:", error);
         // Some browsers require user interaction before playing videos with audio
@@ -79,9 +87,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   };
 
+  // Handle video loading events
+  const handleVideoLoading = () => {
+    setIsLoading(true);
+  };
+
   // Handle video loaded
   const handleVideoLoaded = () => {
     setIsVideoLoaded(true);
+    setIsLoading(false);
+    
     if (autoPlay && inView) {
       videoRef.current?.play()
         .then(() => setIsPlaying(true))
@@ -99,13 +114,36 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   };
 
+  // Handle when the video can start playing (enough data is loaded)
+  const handleCanPlay = () => {
+    setIsLoading(false);
+  };
+
   // Play/pause when the video comes into view
   useEffect(() => {
-    if (!videoRef.current || !isVideoLoaded) return;
+    if (!videoRef.current) return;
     
     if (inView) {
+      // Explicitly preload video when in view to improve loading performance
+      if (videoRef.current.preload !== "auto") {
+        videoRef.current.preload = "auto";
+      }
+      
+      // Reset the video src to force reload and fix potential audio issues
+      if (!isVideoLoaded && videoRef.current.src !== videoUrl && videoUrl) {
+        const currentSrc = videoRef.current.src;
+        if (currentSrc !== videoUrl) {
+          videoRef.current.src = videoUrl;
+          videoRef.current.load();
+        }
+      }
+      
+      setIsLoading(true);
       videoRef.current.play()
-        .then(() => setIsPlaying(true))
+        .then(() => {
+          setIsPlaying(true);
+          setIsLoading(false);
+        })
         .catch(error => {
           console.error("Video play error:", error);
           // Try with muted (autoplay policy often requires muted)
@@ -113,15 +151,30 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
             videoRef.current.muted = true;
             setIsMuted(true);
             videoRef.current.play()
-              .then(() => setIsPlaying(true))
-              .catch(err => console.error("Still can't play in view:", err));
+              .then(() => {
+                setIsPlaying(true);
+                setIsLoading(false);
+              })
+              .catch(err => {
+                console.error("Still can't play in view:", err);
+                setIsLoading(false);
+              });
+          } else {
+            setIsLoading(false);
           }
         });
     } else {
       videoRef.current.pause();
       setIsPlaying(false);
     }
-  }, [inView, isVideoLoaded]);
+    
+    // Clean up effect
+    return () => {
+      if (videoRef.current) {
+        videoRef.current.pause();
+      }
+    };
+  }, [inView, videoUrl, isVideoLoaded]);
 
   return (
     <div className={cn("relative w-full h-full", className)}>
@@ -133,9 +186,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         loop
         playsInline
         muted={isMuted}
+        preload={preload}
         onTimeUpdate={updateProgress}
         onEnded={handleVideoEnd}
         onLoadedData={handleVideoLoaded}
+        onLoadStart={handleVideoLoading}
+        onCanPlay={handleCanPlay}
+        onWaiting={handleVideoLoading}
         onClick={togglePlay}
         style={{ 
           maxHeight: '100%',
@@ -143,12 +200,21 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         }}
       />
 
+      {/* Loading overlay */}
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-60 z-10">
+          <div className="animate-spin">
+            <Loader2 size={48} className="text-yellow-400" />
+          </div>
+        </div>
+      )}
+
       {/* Play/Pause overlay */}
-      {!isPlaying && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30">
+      {!isPlaying && !isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 z-10">
           <button
             onClick={togglePlay}
-            className="p-4 rounded-full bg-black bg-opacity-50 text-white"
+            className="p-4 rounded-full bg-black bg-opacity-50 text-white hover:bg-opacity-70 transition-all"
           >
             <Play size={32} />
           </button>
@@ -156,13 +222,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       )}
 
       {/* Controls */}
-      <div className="absolute bottom-4 left-2 right-2 flex flex-col gap-2">
+      <div className="absolute bottom-4 left-2 right-2 flex flex-col gap-2 z-20">
         {/* Progress bar */}
         <div 
-          className="video-progress cursor-pointer" 
+          className="h-1 bg-white bg-opacity-20 rounded-full overflow-hidden cursor-pointer" 
           onClick={handleSeek}
         >
-          <div className="video-progress-fill" style={{ width: `${progress}%` }} />
+          <div className="h-full bg-yellow-400 rounded-full" style={{ width: `${progress}%` }} />
         </div>
 
         <div className="flex items-center justify-between">

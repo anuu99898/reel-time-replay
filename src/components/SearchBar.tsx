@@ -1,9 +1,8 @@
 
 import React, { useState, useRef, useEffect } from "react";
-import { Search, X } from "lucide-react";
+import { Search, X, TagIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   CommandDialog,
@@ -12,24 +11,34 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandSeparator,
 } from "@/components/ui/command";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { searchIdeas, searchTags } from "@/integrations/supabase/database";
 
 interface SearchResult {
   id: string;
   title: string;
   type: string;
+  description?: string;
   thumbnail?: string;
   user?: {
     username: string;
     avatar: string;
+    id: string;
   };
+}
+
+interface TagResult {
+  name: string;
 }
 
 const SearchBar: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [tagResults, setTagResults] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const navigate = useNavigate();
@@ -39,7 +48,12 @@ const SearchBar: React.FC = () => {
     // Load recent searches from localStorage
     const savedSearches = localStorage.getItem("recentSearches");
     if (savedSearches) {
-      setRecentSearches(JSON.parse(savedSearches));
+      try {
+        setRecentSearches(JSON.parse(savedSearches));
+      } catch (error) {
+        console.error("Error parsing recent searches:", error);
+        localStorage.removeItem("recentSearches");
+      }
     }
 
     // Handle keyboard shortcut to open search
@@ -55,35 +69,23 @@ const SearchBar: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const searchIdeas = async () => {
+    const performSearch = async () => {
       if (!query.trim()) {
         setResults([]);
+        setTagResults([]);
         return;
       }
 
       setIsLoading(true);
       try {
-        const { data: ideaResults, error } = await supabase
-          .from("ideas")
-          .select("id, title, description, thumbnail_url, type, user_id, profiles:profiles(username, avatar_url)")
-          .or(`title.ilike.%${query}%,description.ilike.%${query}%,tags.cs.{${query}}`)
-          .limit(5);
-
-        if (error) throw error;
-
-        const formattedResults = ideaResults.map((idea: any) => ({
-          id: idea.id,
-          title: idea.title,
-          description: idea.description,
-          type: idea.type,
-          thumbnail: idea.thumbnail_url,
-          user: idea.profiles ? {
-            username: idea.profiles.username || "User",
-            avatar: idea.profiles.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${idea.user_id}`
-          } : undefined
-        }));
-
-        setResults(formattedResults);
+        // Search for ideas
+        const ideaResults = await searchIdeas(query, 5);
+        setResults(ideaResults);
+        
+        // Search for tags
+        const tags = await searchTags(query, 3);
+        setTagResults(tags);
+        
       } catch (error) {
         console.error("Search error:", error);
       } finally {
@@ -93,7 +95,7 @@ const SearchBar: React.FC = () => {
 
     // Debounce search
     const handler = setTimeout(() => {
-      searchIdeas();
+      performSearch();
     }, 300);
 
     return () => clearTimeout(handler);
@@ -113,15 +115,67 @@ const SearchBar: React.FC = () => {
     setQuery("");
   };
 
+  const handleSelectTag = (tag: string) => {
+    // Navigate to search results for this tag
+    navigate(`/search?tag=${encodeURIComponent(tag)}`);
+    setOpen(false);
+    setQuery("");
+  };
+
   const handleClearSearch = () => {
     setQuery("");
     setResults([]);
+    setTagResults([]);
   };
 
   const handleClearRecentSearches = () => {
     setRecentSearches([]);
     localStorage.removeItem("recentSearches");
   };
+
+  const renderResultItem = (result: SearchResult) => (
+    <CommandItem
+      key={result.id}
+      onSelect={() => handleSelectResult(result.id)}
+      className="py-2"
+    >
+      <div className="flex items-center gap-3 w-full">
+        {result.thumbnail ? (
+          <img
+            src={result.thumbnail}
+            alt={result.title}
+            className="w-10 h-10 rounded object-cover"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/shapes/svg?seed=${result.id}`;
+            }}
+          />
+        ) : (
+          <div className="w-10 h-10 rounded bg-gray-800 flex items-center justify-center">
+            <Search className="h-4 w-4 text-gray-400" />
+          </div>
+        )}
+        <div className="flex-1 overflow-hidden">
+          <h4 className="text-sm font-medium truncate">
+            {result.title}
+          </h4>
+          {result.user && (
+            <div className="flex items-center text-xs text-gray-400">
+              <Avatar className="h-4 w-4 mr-1">
+                <AvatarImage src={result.user.avatar} />
+                <AvatarFallback>
+                  {result.user.username[0]}
+                </AvatarFallback>
+              </Avatar>
+              @{result.user.username}
+            </div>
+          )}
+        </div>
+        <Badge variant="outline" className="text-xs bg-gray-800 text-gray-300">
+          {result.type}
+        </Badge>
+      </div>
+    </CommandItem>
+  );
 
   return (
     <>
@@ -140,21 +194,24 @@ const SearchBar: React.FC = () => {
       </div>
 
       <CommandDialog open={open} onOpenChange={setOpen}>
-        <CommandInput
-          placeholder="Search ideas, tags, or users..."
-          value={query}
-          onValueChange={setQuery}
-        />
-        {query && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="absolute right-2 top-2 h-6 w-6 p-0"
-            onClick={handleClearSearch}
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        )}
+        <div className="relative">
+          <CommandInput
+            placeholder="Search ideas, tags, or users..."
+            value={query}
+            onValueChange={setQuery}
+          />
+          {query && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute right-2 top-2 h-6 w-6 p-0"
+              onClick={handleClearSearch}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+        
         <CommandList>
           {isLoading && (
             <div className="p-4 space-y-3">
@@ -193,52 +250,32 @@ const SearchBar: React.FC = () => {
             </CommandGroup>
           )}
 
-          {query && !isLoading && results.length === 0 && (
+          {query && !isLoading && results.length === 0 && tagResults.length === 0 && (
             <CommandEmpty>No results found.</CommandEmpty>
           )}
 
-          {results.length > 0 && (
-            <CommandGroup heading="Ideas">
-              {results.map((result) => (
+          {tagResults.length > 0 && (
+            <CommandGroup heading="Tags">
+              {tagResults.map((tag) => (
                 <CommandItem
-                  key={result.id}
-                  onSelect={() => handleSelectResult(result.id)}
+                  key={tag}
+                  onSelect={() => handleSelectTag(tag)}
+                  className="flex items-center gap-2"
                 >
-                  <div className="flex items-center gap-3 w-full">
-                    {result.thumbnail ? (
-                      <img
-                        src={result.thumbnail}
-                        alt={result.title}
-                        className="w-10 h-10 rounded object-cover"
-                      />
-                    ) : (
-                      <div className="w-10 h-10 rounded bg-gray-800 flex items-center justify-center">
-                        <Search className="h-4 w-4 text-gray-400" />
-                      </div>
-                    )}
-                    <div className="flex-1 overflow-hidden">
-                      <h4 className="text-sm font-medium truncate">
-                        {result.title}
-                      </h4>
-                      {result.user && (
-                        <div className="flex items-center text-xs text-gray-400">
-                          <Avatar className="h-4 w-4 mr-1">
-                            <AvatarImage src={result.user.avatar} />
-                            <AvatarFallback>
-                              {result.user.username[0]}
-                            </AvatarFallback>
-                          </Avatar>
-                          @{result.user.username}
-                        </div>
-                      )}
-                    </div>
-                    <span className="text-xs bg-gray-800 px-2 py-1 rounded">
-                      {result.type}
-                    </span>
-                  </div>
+                  <TagIcon size={16} className="text-gray-400" />
+                  <span>#{tag}</span>
                 </CommandItem>
               ))}
             </CommandGroup>
+          )}
+
+          {results.length > 0 && (
+            <>
+              {tagResults.length > 0 && <CommandSeparator />}
+              <CommandGroup heading="Ideas">
+                {results.map(renderResultItem)}
+              </CommandGroup>
+            </>
           )}
         </CommandList>
       </CommandDialog>

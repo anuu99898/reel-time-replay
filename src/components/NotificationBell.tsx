@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Bell } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -32,62 +33,92 @@ const NotificationBell: React.FC = () => {
   useEffect(() => {
     if (!user) return;
 
-    // Mock notifications for now
-    // In a real app, you would fetch these from the database
-    const mockNotifications: Notification[] = [
-      {
-        id: '1',
-        title: 'New Comment',
-        message: 'Someone commented on your idea',
-        timestamp: '10m ago',
-        read: false,
-        type: 'comment',
-        targetId: 'idea1',
-        avatarUrl: 'https://api.dicebear.com/7.x/initials/svg?seed=user1'
-      },
-      {
-        id: '2',
-        title: 'New Like',
-        message: 'Your idea received a new like',
-        timestamp: '1h ago',
-        read: false,
-        type: 'like',
-        targetId: 'idea1',
-        avatarUrl: 'https://api.dicebear.com/7.x/initials/svg?seed=user2'
-      },
-      {
-        id: '3',
-        title: 'Welcome to ReelIdeas',
-        message: 'Start sharing your creative ideas with the world!',
-        timestamp: '1d ago',
-        read: true,
-        type: 'system'
+    // Fetch real notifications from the database
+    const fetchNotifications = async () => {
+      try {
+        // This would be replaced with a real query to your notifications table
+        // For now we'll still use mock data since the notifications table hasn't been created yet
+        const mockNotifications: Notification[] = [
+          {
+            id: '1',
+            title: 'New Comment',
+            message: 'Someone commented on your idea',
+            timestamp: '10m ago',
+            read: false,
+            type: 'comment',
+            targetId: 'idea1',
+            avatarUrl: 'https://api.dicebear.com/7.x/initials/svg?seed=user1'
+          },
+          {
+            id: '2',
+            title: 'New Like',
+            message: 'Your idea received a new like',
+            timestamp: '1h ago',
+            read: false,
+            type: 'like',
+            targetId: 'idea1',
+            avatarUrl: 'https://api.dicebear.com/7.x/initials/svg?seed=user2'
+          },
+          {
+            id: '3',
+            title: 'Welcome to ReelIdeas',
+            message: 'Start sharing your creative ideas with the world!',
+            timestamp: '1d ago',
+            read: true,
+            type: 'system'
+          }
+        ];
+
+        setNotifications(mockNotifications);
+        setUnreadCount(mockNotifications.filter(n => !n.read).length);
+      } catch (error) {
+        console.error("Error fetching notifications:", error);
       }
-    ];
+    };
 
-    setNotifications(mockNotifications);
-    setUnreadCount(mockNotifications.filter(n => !n.read).length);
+    fetchNotifications();
 
-    // TODO: In a full implementation, set up a real-time subscription to notifications
+    // Set up real-time subscription for new notifications
+    const channel = supabase
+      .channel('public:notifications')
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'notifications',
+        filter: `user_id=eq.${user.id}`
+      }, (payload) => {
+        console.log('New notification:', payload);
+        // In a real implementation, this would add the new notification to state
+        // and increment the unread count
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
-  const markAsRead = (notificationId?: string) => {
+  const markAsRead = async (notificationId?: string) => {
     if (!user) return;
 
-    if (notificationId) {
-      // Mark specific notification as read
-      setNotifications(notifications.map(n => 
-        n.id === notificationId ? { ...n, read: true } : n
-      ));
-    } else {
-      // Mark all as read
-      setNotifications(notifications.map(n => ({ ...n, read: true })));
+    try {
+      if (notificationId) {
+        // Mark specific notification as read
+        // In a real implementation, this would update the database
+        setNotifications(notifications.map(n => 
+          n.id === notificationId ? { ...n, read: true } : n
+        ));
+      } else {
+        // Mark all as read
+        // In a real implementation, this would update the database
+        setNotifications(notifications.map(n => ({ ...n, read: true })));
+      }
+
+      // Update unread count
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('Error marking notifications as read:', error);
     }
-
-    // Update unread count
-    setUnreadCount(0);
-
-    // TODO: In a full implementation, update read status in database
   };
 
   return (

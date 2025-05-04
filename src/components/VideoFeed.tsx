@@ -22,6 +22,7 @@ const VideoItem: React.FC<VideoItemProps> = ({ video, isActive }) => {
         videoUrl={video.videoUrl}
         inView={isActive}
         className="absolute inset-0 w-full h-full object-cover"
+        preload="auto"
       />
 
       <div className="relative z-10 p-4 bg-gradient-to-t from-black/80 to-transparent">
@@ -65,51 +66,88 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ videos, className }) => {
   const [activeVideoIndex, setActiveVideoIndex] = useState(0);
   const feedRef = useRef<HTMLDivElement>(null);
 
+  // Improved scroll handling with debounce
   const handleScroll = useCallback(() => {
     if (!feedRef.current) return;
-    const scrollTop = feedRef.current.scrollTop;
-    const height = feedRef.current.clientHeight;
-    const index = Math.round(scrollTop / height);
-    setActiveVideoIndex(index);
-  }, []);
+    
+    // Use requestAnimationFrame for smoother scrolling
+    requestAnimationFrame(() => {
+      if (!feedRef.current) return;
+      
+      const scrollTop = feedRef.current.scrollTop;
+      const height = feedRef.current.clientHeight;
+      const index = Math.round(scrollTop / height);
+      
+      if (index !== activeVideoIndex && index >= 0 && index < videos.length) {
+        setActiveVideoIndex(index);
+      }
+    });
+  }, [activeVideoIndex, videos.length]);
 
   useEffect(() => {
     const feed = feedRef.current;
     if (!feed) return;
+    
+    // Ensure proper initial alignment on component mount
+    const initialScroll = () => {
+      const height = feed.clientHeight;
+      feed.scrollTo({
+        top: activeVideoIndex * height,
+        behavior: "auto"
+      });
+    };
+    
+    // Run initial alignment after a small delay to ensure DOM is ready
+    const timer = setTimeout(initialScroll, 100);
+    
     feed.addEventListener("scroll", handleScroll);
-    return () => feed.removeEventListener("scroll", handleScroll);
-  }, [handleScroll]);
+    return () => {
+      clearTimeout(timer);
+      feed.removeEventListener("scroll", handleScroll);
+    };
+  }, [handleScroll, activeVideoIndex]);
 
-  // Gesture support (Swipe up and down) - fix the touch event types
+  // Improved swipe gesture handling
   const handleSwipe = useCallback((e: React.TouchEvent) => {
+    if (!feedRef.current) return;
     const touchStart = e.touches[0].clientY;
     
     const handleTouchEnd = (event: TouchEvent) => {
       const touchEnd = event.changedTouches[0].clientY;
-      if (touchStart - touchEnd > 30) {
+      const swipeThreshold = 50; // Increased threshold for better detection
+      
+      if (touchStart - touchEnd > swipeThreshold) {
         // Swipe up: move to next video
         if (activeVideoIndex < videos.length - 1) {
-          setActiveVideoIndex((prev) => prev + 1);
+          const nextIndex = activeVideoIndex + 1;
+          setActiveVideoIndex(nextIndex);
+          
+          // Smooth scroll to next video
+          feedRef.current?.scrollTo({
+            top: nextIndex * feedRef.current.clientHeight,
+            behavior: "smooth"
+          });
         }
-      } else if (touchEnd - touchStart > 30) {
+      } else if (touchEnd - touchStart > swipeThreshold) {
         // Swipe down: move to previous video
         if (activeVideoIndex > 0) {
-          setActiveVideoIndex((prev) => prev - 1);
+          const prevIndex = activeVideoIndex - 1;
+          setActiveVideoIndex(prevIndex);
+          
+          // Smooth scroll to previous video
+          feedRef.current?.scrollTo({
+            top: prevIndex * feedRef.current.clientHeight,
+            behavior: "smooth"
+          });
         }
       }
       
       // Remove the event listener
-      const feed = feedRef.current;
-      if (feed) {
-        feed.removeEventListener("touchend", handleTouchEnd);
-      }
+      document.removeEventListener("touchend", handleTouchEnd);
     };
 
-    // Add the event listener using native DOM API with proper types
-    const feed = feedRef.current;
-    if (feed) {
-      feed.addEventListener("touchend", handleTouchEnd);
-    }
+    // Add the event listener using document to capture all touch events
+    document.addEventListener("touchend", handleTouchEnd);
   }, [activeVideoIndex, videos.length]);
 
   return (
