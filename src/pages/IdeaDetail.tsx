@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -43,15 +42,15 @@ interface IdeaData {
   likes: number | null;
   shares: number | null;
   tags: string[] | null;
-  questions: any[] | null; // Change to any[] to handle complex question objects
+  questions: any[] | null;
   created_at: string | null;
+  user_id: string | null;
   profiles?: {
     id?: string | null;
     username?: string | null;
     avatar_url?: string | null;
     full_name?: string | null;
   } | null;
-  user_id: string | null;
 }
 
 // Define the possible question types to help TypeScript
@@ -576,8 +575,7 @@ const IdeaDetail: React.FC = () => {
                         questionText = question;
                         answerText = "";
                       } else if (typeof question === 'object' && question !== null) {
-                        // Use type assertion to help TypeScript understand the structure
-                        const q = question as { [key: string]: any };
+                        const q = question as Record<string, any>;
                         questionText = q.question || q.text || JSON.stringify(q);
                         answerText = q.answer || q.response || "";
                       }

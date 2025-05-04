@@ -20,7 +20,7 @@ export interface IdeaProps {
     innovation: number;
     impact: number;
   };
-  questions?: any[]; // Use any[] to support different question formats
+  questions?: Array<string | Record<string, any>>; // Support different question formats
 }
 
 export interface IdeaFeedProps {

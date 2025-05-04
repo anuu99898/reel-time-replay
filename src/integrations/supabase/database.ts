@@ -66,7 +66,7 @@ export const addComment = async (ideaId: string, userId: string, text: string) =
     if (error) throw error;
     
     // Get the newly created comment with profile info
-    if (data) {
+    if (data && data[0]) {
       const { data: commentData, error: fetchError } = await supabase
         .from('comments')
         .select(`
@@ -75,7 +75,7 @@ export const addComment = async (ideaId: string, userId: string, text: string) =
             id, username, avatar_url, full_name
           )
         `)
-        .eq('id', data[0]?.id)
+        .eq('id', data[0].id)
         .single();
         
       if (fetchError) throw fetchError;
@@ -321,7 +321,8 @@ export const getIdeaDetail = async (ideaId: string) => {
             .eq('id', data.user_id)
             .single();
             
-          return {
+          // Create a new object with a profiles property to match the expected structure
+          const result = {
             ...data,
             profiles: profileData || {
               id: data.user_id,
@@ -330,12 +331,33 @@ export const getIdeaDetail = async (ideaId: string) => {
               full_name: "Anonymous User"
             }
           };
+          
+          return result;
         } catch (profileError) {
           console.error('Error fetching profile for idea:', profileError);
+          // Return data with a fallback profiles object
+          return {
+            ...data,
+            profiles: {
+              id: data.user_id,
+              username: "Anonymous",
+              avatar_url: `https://api.dicebear.com/7.x/initials/svg?seed=${data.user_id}`,
+              full_name: "Anonymous User"
+            }
+          };
         }
       }
       
-      return data;
+      // If we still don't have a user_id, return with a default profiles value
+      return {
+        ...data,
+        profiles: {
+          id: "anonymous",
+          username: "Anonymous",
+          avatar_url: `https://api.dicebear.com/7.x/initials/svg?seed=anon`,
+          full_name: "Anonymous User"
+        }
+      };
     }
   } catch (error) {
     console.error('Error fetching idea detail:', error);
@@ -374,7 +396,7 @@ export const searchIdeas = async (query: string, limit: number = 10) => {
       if (error) throw error;
       
       // Transform the data to match the expected format
-      const formattedResults = data.map((idea) => ({
+      const formattedResults = data.map((idea: any) => ({
         id: idea.id,
         title: idea.title,
         type: idea.type,
@@ -414,7 +436,7 @@ export const searchIdeas = async (query: string, limit: number = 10) => {
       if (error) throw error;
       
       // Transform the data to match the expected format
-      const formattedResults = data.map((idea) => ({
+      const formattedResults = data.map((idea: any) => ({
         id: idea.id,
         title: idea.title,
         type: idea.type || "video",
