@@ -207,11 +207,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       // Reset loading attempts when coming into view
       loadAttemptRef.current = 0;
       
-      // Start with muted for faster autoplay
-      if (!hasUserInteracted) {
-        videoRef.current.muted = true;
-        setIsMuted(true);
-      }
+      // Start with muted for faster autopla
       
       // Explicitly preload video when in view to improve loading performance
       if (videoRef.current.preload !== "auto") {
