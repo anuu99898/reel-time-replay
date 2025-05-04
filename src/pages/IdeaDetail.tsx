@@ -19,7 +19,7 @@ import { Tag, Star, MessageSquare, AlertTriangle, ArrowLeft, Share2, Edit, Trash
 import { cn } from "@/lib/utils";
 import { formatCount } from "@/data/ideas";
 import { toast } from "sonner";
-import { hasUserLikedIdea, likeIdea, addComment, getComments } from "@/integrations/supabase/database";
+import { hasUserLikedIdea, likeIdea, addComment, getComments, getIdeaDetail } from "@/integrations/supabase/database";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { 
   AlertDialog,
@@ -83,62 +83,54 @@ const IdeaDetail: React.FC = () => {
   const [likesCount, setLikesCount] = useState(0);
   const [sharesCount, setSharesCount] = useState(0);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [loadingComments, setLoadingComments] = useState(true);
   
-  // Fetch idea details
+  // Fetch idea details using our improved database function
   const { data: idea, isLoading, error } = useQuery({
     queryKey: ['idea', id],
     queryFn: async () => {
       if (!id) throw new Error('Idea ID is required');
       
-      const { data, error } = await supabase
-        .from('ideas')
-        .select(`
-          *,
-          profiles:user_id (
-            id,
-            username,
-            avatar_url,
-            full_name
-          )
-        `)
-        .eq('id', id)
-        .single();
+      try {
+        // Use our improved function
+        const data = await getIdeaDetail(id);
         
-      if (error) throw error;
-      if (!data) throw new Error('Idea not found');
-      
-      // Cast to any first to avoid TypeScript errors during transformation
-      const ideaData = data as any;
-      
-      // Transform the data to match IdeaProps
-      const transformedIdea: IdeaProps = {
-        id: ideaData.id,
-        title: ideaData.title,
-        description: ideaData.description,
-        type: ideaData.type as "video" | "image" | "text",
-        media: ideaData.media_url || undefined,
-        thumbnailUrl: ideaData.thumbnail_url || undefined,
-        likes: ideaData.likes || 0,
-        comments: [],
-        shares: ideaData.shares || 0,
-        timestamp: ideaData.created_at || new Date().toISOString(),
-        createdAt: ideaData.created_at || undefined,
-        tags: ideaData.tags || [],
-        ratings: undefined, // This will be populated later if needed
-        user: {
-          id: ideaData.profiles?.id || ideaData.user_id || '',
-          username: ideaData.profiles?.username || 'Anonymous',
-          avatar: ideaData.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${ideaData.user_id}`,
-          name: ideaData.profiles?.full_name || 'Anonymous User',
-          followers: 0,
-          following: 0,
-          bio: ''
-        },
-        questions: ideaData.questions || []
-      };
-      
-      return transformedIdea;
+        if (!data) throw new Error('Idea not found');
+        
+        // Transform the data to match IdeaProps
+        const transformedIdea: IdeaProps = {
+          id: data.id,
+          title: data.title,
+          description: data.description,
+          type: data.type as "video" | "image" | "text",
+          media: data.media_url || undefined,
+          thumbnailUrl: data.thumbnail_url || undefined,
+          likes: data.likes || 0,
+          comments: [],
+          shares: data.shares || 0,
+          timestamp: data.created_at || new Date().toISOString(),
+          createdAt: data.created_at || undefined,
+          tags: data.tags || [],
+          ratings: undefined, // This will be populated later if needed
+          user: {
+            id: data.profiles?.id || data.user_id || '',
+            username: data.profiles?.username || 'Anonymous',
+            avatar: data.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${data.user_id || id}`,
+            name: data.profiles?.full_name || 'Anonymous User',
+            followers: 0,
+            following: 0,
+            bio: ''
+          },
+          questions: data.questions || []
+        };
+        
+        return transformedIdea;
+      } catch (error) {
+        console.error("Error fetching idea:", error);
+        throw error;
+      }
     },
+    retry: 1,
     enabled: !!id
   });
   
@@ -165,6 +157,7 @@ const IdeaDetail: React.FC = () => {
     if (!id) return;
     
     const fetchComments = async () => {
+      setLoadingComments(true);
       try {
         const commentsData = await getComments(id);
         
@@ -174,9 +167,9 @@ const IdeaDetail: React.FC = () => {
           text: comment.text,
           timestamp: new Date(comment.created_at).toLocaleString(),
           user: {
-            id: comment.profiles?.id || "anonymous",
+            id: comment.profiles?.id || comment.user_id || "anonymous",
             username: comment.profiles?.username || "Anonymous",
-            avatar: comment.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${comment.user_id}`,
+            avatar: comment.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${comment.user_id || "anonymous"}`,
             name: comment.profiles?.full_name || "Anonymous User",
             followers: 0,
             following: 0,
@@ -188,6 +181,9 @@ const IdeaDetail: React.FC = () => {
         setComments(formattedComments);
       } catch (error) {
         console.error('Error fetching comments:', error);
+        setComments([]);
+      } finally {
+        setLoadingComments(false);
       }
     };
     
@@ -249,9 +245,9 @@ const IdeaDetail: React.FC = () => {
         text: comment.text,
         timestamp: new Date(comment.created_at).toLocaleString(),
         user: {
-          id: comment.profiles?.id || "anonymous",
+          id: comment.profiles?.id || comment.user_id || "anonymous",
           username: comment.profiles?.username || "Anonymous",
-          avatar: comment.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${comment.user_id}`,
+          avatar: comment.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${comment.user_id || "anonymous"}`,
           name: comment.profiles?.full_name || "Anonymous User",
           followers: 0,
           following: 0,
@@ -340,15 +336,16 @@ const IdeaDetail: React.FC = () => {
       fetchComments={async () => {
         if (!id) return;
         try {
+          setLoadingComments(true);
           const commentsData = await getComments(id);
           const formattedComments = commentsData.map((comment: any) => ({
             id: comment.id,
             text: comment.text,
             timestamp: new Date(comment.created_at).toLocaleString(),
             user: {
-              id: comment.profiles?.id || "anonymous",
+              id: comment.profiles?.id || comment.user_id || "anonymous",
               username: comment.profiles?.username || "Anonymous",
-              avatar: comment.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${comment.user_id}`,
+              avatar: comment.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${comment.user_id || "anonymous"}`,
               name: comment.profiles?.full_name || "Anonymous User",
               followers: 0,
               following: 0,
@@ -360,6 +357,8 @@ const IdeaDetail: React.FC = () => {
           setComments(formattedComments);
         } catch (error) {
           console.error('Error fetching comments:', error);
+        } finally {
+          setLoadingComments(false);
         }
       }}
     />
@@ -410,6 +409,7 @@ const IdeaDetail: React.FC = () => {
                     videoUrl={idea.media || ""}
                     inView={true}
                     className="w-full h-full object-contain"
+                    preload="auto"
                   />
                 </div>
               ) : (
@@ -596,7 +596,11 @@ const IdeaDetail: React.FC = () => {
               <TabsContent value="discussion" className="pt-4">
                 <div className="bg-gray-900 p-4 rounded-lg">
                   <h2 className="text-xl font-bold mb-4">Discussion</h2>
-                  {comments.length > 0 ? (
+                  {loadingComments ? (
+                    <div className="flex justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-yellow-400"></div>
+                    </div>
+                  ) : comments.length > 0 ? (
                     <div className="space-y-4">
                       {comments.slice(0, 3).map((comment) => (
                         <div key={comment.id} className="flex gap-3">
@@ -604,6 +608,9 @@ const IdeaDetail: React.FC = () => {
                             src={comment.user.avatar} 
                             alt={comment.user.username}
                             className="w-8 h-8 rounded-full"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=anon`;
+                            }}
                           />
                           <div>
                             <div className="flex items-center gap-2">

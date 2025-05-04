@@ -24,34 +24,49 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [isMuted, setIsMuted] = useState(false);
+  const [isMuted, setIsMuted] = useState(true); // Default to muted for faster loading
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const isMobile = useIsMobile();
+  const [hasUserInteracted, setHasUserInteracted] = useState(false);
+  const loadAttemptRef = useRef(0);
 
   // Handle play/pause
   const togglePlay = () => {
     if (!videoRef.current) return;
+    
+    setHasUserInteracted(true);
 
     if (isPlaying) {
       videoRef.current.pause();
+      setIsPlaying(false);
     } else {
       // Show loading indicator
       if (!isVideoLoaded) {
         setIsLoading(true);
       }
       
-      videoRef.current.play().catch(error => {
+      videoRef.current.play().then(() => {
+        setIsPlaying(true);
+        setIsLoading(false);
+      }).catch(error => {
         console.error("Video play error:", error);
         // Some browsers require user interaction before playing videos with audio
         if (videoRef.current) {
           videoRef.current.muted = true;
           setIsMuted(true);
-          videoRef.current.play().catch(err => console.error("Still can't play:", err));
+          videoRef.current.play().then(() => {
+            setIsPlaying(true);
+            setIsLoading(false);
+          }).catch(err => {
+            console.error("Still can't play:", err);
+            setIsLoading(false);
+          });
+        } else {
+          setIsLoading(false);
         }
       });
     }
-    setIsPlaying(!isPlaying);
   };
 
   // Handle mute/unmute
@@ -59,6 +74,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     if (!videoRef.current) return;
     videoRef.current.muted = !isMuted;
     setIsMuted(!isMuted);
+    setHasUserInteracted(true);
   };
 
   // Update progress bar
@@ -96,85 +112,131 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const handleVideoLoaded = () => {
     setIsVideoLoaded(true);
     setIsLoading(false);
+    loadAttemptRef.current = 0;
     
     if (autoPlay && inView) {
-      videoRef.current?.play()
-        .then(() => setIsPlaying(true))
-        .catch(error => {
-          console.error("Video play error:", error);
-          // Try with muted (autoplay policy often requires muted)
-          if (videoRef.current) {
-            videoRef.current.muted = true;
-            setIsMuted(true);
-            videoRef.current.play()
-              .then(() => setIsPlaying(true))
-              .catch(err => console.error("Still can't autoplay:", err));
-          }
-        });
+      playVideo();
     }
   };
-
-  // Handle when the video can start playing (enough data is loaded)
-  const handleCanPlay = () => {
-    setIsLoading(false);
-  };
-
-  // Play/pause when the video comes into view
-  useEffect(() => {
+  
+  // Extract play logic to reuse
+  const playVideo = () => {
     if (!videoRef.current) return;
     
-    if (inView) {
-      // Explicitly preload video when in view to improve loading performance
-      if (videoRef.current.preload !== "auto") {
-        videoRef.current.preload = "auto";
-      }
-      
-      // Reset the video src to force reload and fix potential audio issues
-      if (!isVideoLoaded && videoRef.current.src !== videoUrl && videoUrl) {
-        const currentSrc = videoRef.current.src;
-        if (currentSrc !== videoUrl) {
-          videoRef.current.src = videoUrl;
-          videoRef.current.load();
-        }
-      }
-      
-      setIsLoading(true);
-      videoRef.current.play()
-        .then(() => {
-          setIsPlaying(true);
-          setIsLoading(false);
-        })
-        .catch(error => {
-          console.error("Video play error:", error);
-          // Try with muted (autoplay policy often requires muted)
+    videoRef.current.play()
+      .then(() => {
+        setIsPlaying(true);
+        setIsLoading(false);
+      })
+      .catch(error => {
+        console.error("Video play error:", error);
+        
+        // If we've tried less than 3 times, try with muted
+        if (loadAttemptRef.current < 3) {
+          loadAttemptRef.current += 1;
+          
           if (videoRef.current) {
             videoRef.current.muted = true;
             setIsMuted(true);
+            
             videoRef.current.play()
               .then(() => {
                 setIsPlaying(true);
                 setIsLoading(false);
               })
               .catch(err => {
-                console.error("Still can't play in view:", err);
+                console.error("Still can't autoplay:", err);
                 setIsLoading(false);
               });
-          } else {
-            setIsLoading(false);
           }
-        });
+        } else {
+          // Give up after 3 attempts
+          setIsLoading(false);
+        }
+      });
+  };
+
+  // Handle when the video can start playing (enough data is loaded)
+  const handleCanPlay = () => {
+    setIsLoading(false);
+    
+    // If video is in view and should autoplay, start playing
+    if (inView && autoPlay && !isPlaying) {
+      playVideo();
+    }
+  };
+
+  // Handle seeking to avoid displaying loading indicator during normal seeking
+  const handleSeeking = () => {
+    // Only show loading if we're not near the end of the video
+    if (videoRef.current && (videoRef.current.duration - videoRef.current.currentTime) > 0.5) {
+      setIsLoading(true);
+    }
+  };
+  
+  const handleSeeked = () => {
+    setIsLoading(false);
+  };
+  
+  // Optimize video preloading
+  useEffect(() => {
+    if (!videoRef.current) return;
+    
+    if (inView) {
+      // Optimize video loading
+      if (preload === "auto") {
+        // Set to low quality initially for faster loading if browser supports it
+        if ('playsInline' in videoRef.current) {
+          videoRef.current.playsInline = true;
+        }
+        
+        // Reset src if needed
+        if (videoRef.current.src !== videoUrl && videoUrl) {
+          videoRef.current.src = videoUrl;
+          videoRef.current.load();
+        }
+      }
+    }
+  }, [inView, videoUrl, preload]);
+
+  // Play/pause when the video comes into view
+  useEffect(() => {
+    if (!videoRef.current) return;
+    
+    if (inView) {
+      // Reset loading attempts when coming into view
+      loadAttemptRef.current = 0;
+      
+      // Start with muted for faster autoplay
+      if (!hasUserInteracted) {
+        videoRef.current.muted = true;
+        setIsMuted(true);
+      }
+      
+      // Explicitly preload video when in view to improve loading performance
+      if (videoRef.current.preload !== "auto") {
+        videoRef.current.preload = "auto";
+      }
+      
+      setIsLoading(true);
+      
+      // Slight delay to allow browser to initialize video
+      const timer = setTimeout(() => {
+        playVideo();
+      }, 100);
+      
+      return () => clearTimeout(timer);
     } else {
+      // Pause and potentially unload when out of view
       videoRef.current.pause();
       setIsPlaying(false);
-    }
-    
-    // Clean up effect
-    return () => {
-      if (videoRef.current) {
-        videoRef.current.pause();
+      
+      // If far from current view, save memory by reducing quality
+      if (videoRef.current.preload !== "metadata") {
+        videoRef.current.preload = "metadata";
       }
-    };
-  }, [inView, videoUrl, isVideoLoaded]);
+    }
+  }, [inView, autoPlay, hasUserInteracted]);
 
   return (
     <div className={cn("relative w-full h-full", className)}>
@@ -193,6 +255,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         onLoadStart={handleVideoLoading}
         onCanPlay={handleCanPlay}
         onWaiting={handleVideoLoading}
+        onSeeking={handleSeeking}
+        onSeeked={handleSeeked}
         onClick={togglePlay}
         style={{ 
           maxHeight: '100%',
@@ -216,7 +280,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
             onClick={togglePlay}
             className="p-4 rounded-full bg-black bg-opacity-50 text-white hover:bg-opacity-70 transition-all"
           >
-            <Play size={32} />
+            <Play size={32} className="text-yellow-400" />
           </button>
         </div>
       )}
