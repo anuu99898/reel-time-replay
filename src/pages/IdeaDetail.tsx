@@ -1,15 +1,26 @@
-
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { IdeaProps } from "@/types/idea";
+import CommentSection from "@/components/CommentSection";
+import { useAuth } from "@/providers/AuthProvider";
+import Header from "@/components/Header";
+import VideoPlayer from "@/components/VideoPlayer";
+import IdeaActions from "@/components/IdeaActions";
+import ProfilePreview from "@/components/ProfilePreview";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Mail, Phone, ArrowLeft, MessageSquare, Heart, Share2, Edit, Trash2, AlertTriangle } from "lucide-react";
-import CommentSection from "@/components/CommentSection";
-import { toast } from "@/components/ui/sonner";
-import { useAuth } from "@/providers/AuthProvider";
-import {
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import { Tag, Star, MessageSquare, AlertTriangle, ArrowLeft, Share2, Edit, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { formatCount } from "@/data/ideas";
+import { toast } from "sonner";
+import { hasUserLikedIdea, likeIdea, addComment, getComments } from "@/integrations/supabase/database";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { 
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -20,551 +31,548 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-const IdeaDetail = () => {
-  const { id } = useParams();
+const IdeaDetail: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [idea, setIdea] = useState<any | null>(null);
-  const [creator, setCreator] = useState<any | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const isMobile = useIsMobile();
+  
   const [showComments, setShowComments] = useState(false);
-  const [liked, setLiked] = useState(false);
-  const [isOwner, setIsOwner] = useState(false);
+  const [comments, setComments] = useState<any[]>([]);
+  const [isLiked, setIsLiked] = useState(false);
+  const [likesCount, setLikesCount] = useState(0);
+  const [sharesCount, setSharesCount] = useState(0);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [similarIdeas, setSimilarIdeas] = useState<any[]>([]);
-  const [commentsList, setCommentsList] = useState<any[]>([]);
-
-  useEffect(() => {
-    const fetchIdeaDetails = async () => {
-      if (!id) return;
+  
+  // Fetch idea details
+  const { data: idea, isLoading, error } = useQuery<IdeaProps>({
+    queryKey: ['idea', id],
+    queryFn: async () => {
+      if (!id) throw new Error('Idea ID is required');
       
+      const { data, error } = await supabase
+        .from('ideas')
+        .select(`
+          *,
+          profiles:user_id (
+            id,
+            username,
+            avatar_url,
+            full_name
+          )
+        `)
+        .eq('id', id)
+        .single();
+        
+      if (error) throw error;
+      if (!data) throw new Error('Idea not found');
+      
+      // Transform the data to match IdeaProps
+      return {
+        id: data.id,
+        title: data.title,
+        description: data.description,
+        type: data.type,
+        media: data.media_url,
+        thumbnailUrl: data.thumbnail_url,
+        likes: data.likes_count || 0,
+        comments: [],
+        shares: data.shares_count || 0,
+        ratings: data.average_rating || 0,
+        tags: data.tags || [],
+        createdAt: data.created_at,
+        user: {
+          id: data.profiles?.id || '',
+          username: data.profiles?.username || 'Anonymous',
+          avatar: data.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${data.user_id}`,
+          name: data.profiles?.full_name || 'Anonymous User',
+          followers: 0,
+          following: 0,
+          bio: ''
+        },
+        questions: data.questions || []
+      };
+    },
+    enabled: !!id
+  });
+  
+  // Check if user has liked this idea
+  useEffect(() => {
+    if (!user || !idea) return;
+    
+    const checkLikeStatus = async () => {
       try {
-        setIsLoading(true);
-        
-        // Fetch idea details
-        const { data: ideaData, error: ideaError } = await supabase
-          .from("ideas")
-          .select("*, idea_ratings(*)")
-          .eq("id", id)
-          .single();
-          
-        if (ideaError) throw ideaError;
-        
-        if (!ideaData) {
-          toast.error("Idea not found");
-          navigate("/");
-          return;
-        }
-
-        // Set idea data
-        setIdea(ideaData);
-        
-        // Check if user owns this idea
-        if (user && ideaData.user_id === user.id) {
-          setIsOwner(true);
-        }
-        
-        // Fetch creator profile
-        if (ideaData.user_id) {
-          const { data: creatorData } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", ideaData.user_id)
-            .single();
-            
-          setCreator(creatorData);
-        }
-        
-        // Fetch comments
-        const { data: commentsData } = await supabase
-          .from("comments")
-          .select("*, profiles(*)")
-          .eq("idea_id", id)
-          .order("created_at", { ascending: false });
-          
-        if (commentsData) {
-          const formattedComments = commentsData.map((comment: any) => ({
-            id: comment.id,
-            text: comment.text,
-            timestamp: new Date(comment.created_at).toLocaleString(),
-            user: {
-              id: comment.profiles?.id || "anonymous",
-              username: comment.profiles?.username || "Anonymous",
-              avatar: comment.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${comment.user_id || "anon"}`,
-              name: comment.profiles?.full_name || "Anonymous User",
-              followers: 0,
-              following: 0,
-              bio: ""
-            },
-            likes: 0
-          }));
-          
-          setCommentsList(formattedComments);
-        }
-        
-        // Fetch similar ideas based on tags
-        if (ideaData.tags && ideaData.tags.length > 0) {
-          let { data: similarData } = await supabase
-            .from("ideas")
-            .select("id, title, thumbnail_url, media_url, user_id, likes, profiles:profiles(username, avatar_url)")
-            .neq("id", id)
-            .limit(3);
-            
-          if (similarData) {
-            setSimilarIdeas(similarData);
-          }
-        }
-        
-      } catch (error: any) {
-        console.error("Error fetching idea:", error);
-        toast.error("Failed to load idea");
-        navigate("/");
-      } finally {
-        setIsLoading(false);
+        const liked = await hasUserLikedIdea(idea.id, user.id);
+        setIsLiked(liked);
+        setLikesCount(idea.likes);
+        setSharesCount(idea.shares);
+      } catch (error) {
+        console.error('Error checking like status:', error);
       }
     };
     
-    fetchIdeaDetails();
-  }, [id, user, navigate]);
-
-  const handleLike = () => {
-    setLiked(!liked);
-    // In a real app, you'd update the likes count in the database
-  };
-
-  const handleConnect = () => {
-    if (!user) {
-      toast.error("Please login to connect with the creator");
-      navigate("/login");
-      return;
-    }
+    checkLikeStatus();
+  }, [user, idea]);
+  
+  // Fetch comments
+  useEffect(() => {
+    if (!id) return;
     
-    toast.success("Connection request sent to the creator!");
-  };
-
-  const handleDeleteIdea = async () => {
-    if (!id || !user) return;
-    
-    try {
-      const { error } = await supabase
-        .from("ideas")
-        .delete()
-        .eq("id", id)
-        .eq("user_id", user.id);
+    const fetchComments = async () => {
+      try {
+        const commentsData = await getComments(id);
         
-      if (error) throw error;
-      
-      toast.success("Your submission has been deleted");
-      navigate("/profile");
-    } catch (error: any) {
-      console.error("Error deleting idea:", error);
-      toast.error("Failed to delete submission");
-    } finally {
-      setDeleteDialogOpen(false);
-    }
-  };
-
-  const handleCommentSubmit = async (text: string) => {
-    if (!user || !id || !text.trim()) return;
-    
-    try {
-      // Insert comment into database
-      const { data, error } = await supabase
-        .from("comments")
-        .insert({
-          idea_id: id,
-          user_id: user.id,
-          text: text.trim()
-        })
-        .select("*, profiles(*)");
-        
-      if (error) throw error;
-      
-      if (data && data[0]) {
-        const newComment = {
-          id: data[0].id,
-          text: data[0].text,
-          timestamp: "Just now",
+        // Transform comments to match the expected format
+        const formattedComments = commentsData.map((comment: any) => ({
+          id: comment.id,
+          text: comment.text,
+          timestamp: new Date(comment.created_at).toLocaleString(),
           user: {
-            id: user.id,
-            username: user.email?.split('@')[0] || "User",
-            avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${user.email}`,
-            name: user.email?.split('@')[0] || "User",
+            id: comment.profiles?.id || "anonymous",
+            username: comment.profiles?.username || "Anonymous",
+            avatar: comment.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${comment.user_id}`,
+            name: comment.profiles?.full_name || "Anonymous User",
             followers: 0,
             following: 0,
             bio: ""
           },
           likes: 0
-        };
+        }));
         
-        setCommentsList([newComment, ...commentsList]);
-        toast.success("Comment added successfully");
+        setComments(formattedComments);
+      } catch (error) {
+        console.error('Error fetching comments:', error);
       }
-    } catch (error: any) {
-      console.error("Error adding comment:", error);
-      toast.error("Failed to add comment");
+    };
+    
+    fetchComments();
+  }, [id]);
+  
+  const handleLike = async () => {
+    if (!user || !idea) {
+      toast.error('You need to be logged in to like ideas');
+      return;
+    }
+    
+    try {
+      const newLikeStatus = await likeIdea(idea.id, user.id);
+      setIsLiked(newLikeStatus);
+      setLikesCount(prev => newLikeStatus ? prev + 1 : prev - 1);
+      
+      if (newLikeStatus) {
+        toast.success('Idea liked!');
+      }
+    } catch (error) {
+      console.error('Error liking idea:', error);
+      toast.error('Failed to like idea');
     }
   };
-
+  
+  const handleShare = async () => {
+    if (!idea) return;
+    
+    try {
+      // Copy link to clipboard
+      await navigator.clipboard.writeText(`${window.location.origin}/idea/${idea.id}`);
+      toast.success('Link copied to clipboard!');
+      
+      // Increment share count
+      setSharesCount(prev => prev + 1);
+      
+      // Update in database
+      await supabase.rpc('increment_shares', { idea_id: idea.id });
+    } catch (error) {
+      console.error('Error sharing idea:', error);
+      toast.error('Failed to share');
+    }
+  };
+  
+  const handleCommentSubmit = async (text: string) => {
+    if (!user || !id) {
+      toast.error('You need to be logged in to comment');
+      return Promise.reject(new Error('User not logged in'));
+    }
+    
+    try {
+      await addComment(id, user.id, text);
+      
+      // Refresh comments
+      const commentsData = await getComments(id);
+      const formattedComments = commentsData.map((comment: any) => ({
+        id: comment.id,
+        text: comment.text,
+        timestamp: new Date(comment.created_at).toLocaleString(),
+        user: {
+          id: comment.profiles?.id || "anonymous",
+          username: comment.profiles?.username || "Anonymous",
+          avatar: comment.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${comment.user_id}`,
+          name: comment.profiles?.full_name || "Anonymous User",
+          followers: 0,
+          following: 0,
+          bio: ""
+        },
+        likes: 0
+      }));
+      
+      setComments(formattedComments);
+      return Promise.resolve();
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      return Promise.reject(error);
+    }
+  };
+  
+  const handleDeleteIdea = async () => {
+    if (!user || !idea) return;
+    
+    try {
+      // Check if user is the owner
+      if (user.id !== idea.user.id) {
+        toast.error('You can only delete your own ideas');
+        return;
+      }
+      
+      // Delete the idea
+      const { error } = await supabase
+        .from('ideas')
+        .delete()
+        .eq('id', idea.id);
+        
+      if (error) throw error;
+      
+      toast.success('Idea deleted successfully');
+      navigate('/');
+    } catch (error) {
+      console.error('Error deleting idea:', error);
+      toast.error('Failed to delete idea');
+    }
+  };
+  
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-yellow-400"></div>
+      <div className="min-h-screen bg-black text-white">
+        <Header />
+        <div className="pt-20 flex items-center justify-center h-screen">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-yellow-400"></div>
+        </div>
       </div>
     );
   }
-
-  if (!idea) return null;
-
-  // Get ratings safely with default values
-  const ratings = idea.idea_ratings && idea.idea_ratings[0] ? idea.idea_ratings[0] : null;
-  const practicality = ratings?.practicality || 0;
-  const innovation = ratings?.innovation || 0;
-  const impact = ratings?.impact || 0;
-
+  
+  if (error || !idea) {
+    return (
+      <div className="min-h-screen bg-black text-white">
+        <Header />
+        <div className="pt-20 flex flex-col items-center justify-center h-screen p-4">
+          <h1 className="text-2xl font-bold mb-4">Idea not found</h1>
+          <p className="text-gray-400 mb-6">The idea you're looking for doesn't exist or has been removed.</p>
+          <Button onClick={() => navigate('/')}>Back to Home</Button>
+        </div>
+      </div>
+    );
+  }
+  
   // Check if this is a problem-based submission
   const hasProblem = idea.questions && idea.questions.length > 0;
-
+  
   return (
-    <div className="min-h-screen bg-black text-white pt-16 pb-16 px-4">
-      <div className="max-w-4xl mx-auto">
-        {/* Back button */}
-        <Button
-          variant="ghost"
-          onClick={() => navigate(-1)}
-          className="mb-4 text-gray-400"
-        >
-          <ArrowLeft size={18} className="mr-2" />
-          Back
-        </Button>
-
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          {/* Main content */}
-          <div className="lg:col-span-3">
-            {/* Problem indicator */}
-            {hasProblem && (
-              <div className="bg-yellow-400 text-black px-3 py-1 rounded-full inline-flex items-center mb-3">
-                <AlertTriangle size={16} className="mr-1" />
-                <span className="font-medium">Problem needs solutions</span>
-              </div>
-            )}
-            
-            {/* Media */}
-            <div className="rounded-lg overflow-hidden bg-gray-900 mb-4">
-              {idea.content_type === "video" ? (
-                <video 
-                  src={idea.media_url} 
-                  poster={idea.thumbnail_url} 
-                  controls 
-                  className="w-full object-contain max-h-[70vh]"
-                />
-              ) : (
-                <img 
-                  src={idea.thumbnail_url || idea.media_url} 
-                  alt={idea.title} 
-                  className="w-full object-cover max-h-80"
-                />
-              )}
-            </div>
-
-            {/* Title and description */}
-            <div className="flex justify-between items-start mb-2">
-              <h1 className="text-2xl font-bold">{idea.title}</h1>
-              {isOwner && (
-                <div className="flex gap-2">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => navigate(`/edit/${idea.id}`)}
-                    className="text-yellow-400 hover:text-yellow-500"
-                  >
-                    <Edit size={16} className="mr-1" />
-                    Edit
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={() => setDeleteDialogOpen(true)}
-                    className="text-red-500 hover:text-red-600"
-                  >
-                    <Trash2 size={16} className="mr-1" />
-                    Delete
-                  </Button>
-                </div>
-              )}
-            </div>
-            <div className="flex items-center text-sm text-gray-400 mb-2">
-              <span className="capitalize px-2 py-0.5 bg-gray-800 rounded-full text-xs mr-2">
-                {idea.idea_type}
-              </span>
-              <span>{new Date(idea.created_at).toLocaleDateString()}</span>
-            </div>
-
-            <div className="prose prose-sm prose-invert max-w-none mb-6">
-              <p className="whitespace-pre-line">{idea.description}</p>
-            </div>
-
-            {/* Tags */}
-            {idea.tags && idea.tags.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-4 mb-6">
-                {idea.tags.map((tag: string, index: number) => (
-                  <div key={index} className="bg-gray-800 text-sm px-3 py-1 rounded-full text-gray-300">
-                    #{tag}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Questions section */}
-            {idea.questions && idea.questions.length > 0 && (
-              <div className="mt-6 bg-gray-900 p-4 rounded-lg">
-                <h2 className="text-xl font-semibold mb-4">Questions</h2>
-                <div className="space-y-3">
-                  {idea.questions.map((question: string, idx: number) => (
-                    <div key={idx} className="p-3 bg-gray-800 rounded-lg">
-                      <p className="text-sm">{question}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Comments section */}
-            <div className="mt-8">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold">Feedback</h2>
-                <Button 
-                  variant="outline"
-                  onClick={() => setShowComments(true)}
-                  className="text-sm"
-                >
-                  <MessageSquare size={16} className="mr-2" />
-                  {commentsList && commentsList.length > 0
-                    ? `View all (${commentsList.length})`
-                    : "Add feedback"}
-                </Button>
-              </div>
-
-              {/* Display few comments */}
-              {commentsList && commentsList.length > 0 ? (
-                <div className="space-y-4 mt-4">
-                  {commentsList.slice(0, 2).map((comment: any) => (
-                    <div key={comment.id} className="flex gap-3 p-3 bg-gray-800 rounded-lg">
-                      <Avatar className="w-8 h-8">
-                        <AvatarImage src={comment.user.avatar} alt={comment.user.username} />
-                        <AvatarFallback>{comment.user.username[0]}</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-sm">@{comment.user.username}</span>
-                          <span className="text-xs text-gray-400">{comment.timestamp}</span>
-                        </div>
-                        <p className="text-sm mt-1">{comment.text}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="mt-4 p-4 bg-gray-800 rounded-lg text-center">
-                  <p className="text-gray-400">No feedback yet. Be the first to comment!</p>
-                </div>
-              )}
-            </div>
-
-            {showComments && (
-              <CommentSection
-                comments={commentsList}
-                onClose={() => setShowComments(false)}
-                currentUser={user ? {
-                  id: user.id,
-                  username: user.email?.split('@')[0] || 'User',
-                  avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${user.email}`,
-                  name: user.email?.split('@')[0] || 'User',
-                  followers: 0,
-                  following: 0,
-                  bio: ''
-                } : null}
-                onCommentSubmit={handleCommentSubmit}
-              />
-            )}
+    <div className="min-h-screen bg-black text-white">
+      <Header />
+      
+      <div className="pt-16 pb-16">
+        {/* Back button for mobile */}
+        {isMobile && (
+          <div className="fixed top-16 left-0 z-30 p-4">
+            <Button 
+              variant="ghost" 
+              size="icon"
+              className="bg-black/50 backdrop-blur-sm rounded-full"
+              onClick={() => navigate(-1)}
+            >
+              <ArrowLeft size={20} />
+            </Button>
           </div>
-
-          {/* Sidebar */}
-          <div className="lg:col-span-2 space-y-6 lg:mt-8">
-            {/* Creator card */}
-            <Card className="bg-gray-800 border-gray-700">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <Avatar className="w-12 h-12">
-                    <AvatarImage src={creator?.avatar_url} alt={creator?.username || "Creator"} />
-                    <AvatarFallback>{(creator?.username || "C")[0].toUpperCase()}</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <h3 className="font-semibold">@{creator?.username || "Creator"}</h3>
-                    <p className="text-sm text-gray-400">{creator?.full_name || ""}</p>
-                  </div>
+        )}
+        
+        {/* Main content */}
+        <div className="max-w-5xl mx-auto px-4 md:px-6 lg:px-8">
+          {/* Desktop header with back button */}
+          {!isMobile && (
+            <div className="py-4">
+              <Button 
+                variant="ghost" 
+                className="flex items-center gap-2"
+                onClick={() => navigate(-1)}
+              >
+                <ArrowLeft size={16} />
+                Back
+              </Button>
+            </div>
+          )}
+          
+          {/* Idea content */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Media column */}
+            <div className="md:col-span-2">
+              {idea.type === "video" ? (
+                <div className="aspect-[9/16] md:aspect-video bg-gray-900 rounded-lg overflow-hidden">
+                  <VideoPlayer
+                    videoUrl={idea.media || ""}
+                    inView={true}
+                    className="w-full h-full object-contain"
+                  />
                 </div>
-
-                <Button
-                  onClick={handleConnect}
-                  className="w-full bg-yellow-400 hover:bg-yellow-500 text-black"
-                >
-                  Connect with Creator
-                </Button>
-
-                {/* Contact info - only shown if logged in */}
-                {user && (
-                  <div className="mt-4 pt-4 border-t border-gray-700">
-                    <h4 className="text-sm font-semibold mb-2">Contact Information</h4>
-                    <div className="space-y-2">
-                      {idea.contact_email && (
-                        <div className="flex items-center text-sm">
-                          <Mail size={14} className="mr-2 text-gray-400" />
-                          <span>{idea.contact_email}</span>
-                        </div>
-                      )}
-                      {idea.contact_phone && (
-                        <div className="flex items-center text-sm">
-                          <Phone size={14} className="mr-2 text-gray-400" />
-                          <span>{idea.contact_phone}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Ratings */}
-            {ratings && (
-              <Card className="bg-gray-800 border-gray-700">
-                <CardContent className="p-6">
-                  <h3 className="font-semibold mb-4">Idea Ratings</h3>
-                  
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span>Practicality</span>
-                        <span>{practicality}%</span>
-                      </div>
-                      <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-green-500" 
-                          style={{ width: `${practicality}%` }}
-                        ></div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span>Innovation</span>
-                        <span>{innovation}%</span>
-                      </div>
-                      <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-blue-500" 
-                          style={{ width: `${innovation}%` }}
-                        ></div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span>Potential Impact</span>
-                        <span>{impact}%</span>
-                      </div>
-                      <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-yellow-400" 
-                          style={{ width: `${impact}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2 mt-6">
-                    <Button 
-                      variant="outline" 
-                      className={`flex-1 ${liked ? "bg-gray-700" : ""}`}
-                      onClick={handleLike}
-                    >
-                      <Heart size={16} className={`mr-2 ${liked ? "fill-red-500 text-red-500" : ""}`} />
-                      {liked ? "Liked" : "Like"}
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      className="flex-1"
-                      onClick={() => setShowComments(true)}
-                    >
-                      <MessageSquare size={16} className="mr-2" />
-                      Comment
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      className="flex-1"
-                      onClick={() => {
-                        navigator.clipboard.writeText(window.location.href);
-                        toast.success("Link copied to clipboard");
+              ) : (
+                <div className="bg-gray-900 rounded-lg overflow-hidden">
+                  {idea.thumbnailUrl ? (
+                    <img 
+                      src={idea.thumbnailUrl} 
+                      alt={idea.title} 
+                      className="w-full h-64 md:h-96 object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/shapes/svg?seed=${idea.id}`;
                       }}
+                    />
+                  ) : (
+                    <div className="w-full h-64 md:h-96 bg-gray-800 flex items-center justify-center">
+                      <Star size={64} className="text-gray-700" />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            {/* Info column */}
+            <div className="md:col-span-1">
+              <Card className="bg-gray-900 border-gray-800">
+                <CardContent className="p-4">
+                  {/* User info */}
+                  <div className="mb-4">
+                    <ProfilePreview user={idea.user} />
+                  </div>
+                  
+                  <Separator className="my-4 bg-gray-800" />
+                  
+                  {/* Actions */}
+                  <div className="flex justify-between items-center mb-4">
+                    <div className="flex gap-4">
+                      <Button 
+                        variant={isLiked ? "default" : "outline"} 
+                        size="sm"
+                        className={cn(
+                          "flex items-center gap-2",
+                          isLiked && "bg-yellow-400 text-black hover:bg-yellow-500"
+                        )}
+                        onClick={handleLike}
+                      >
+                        <Star size={16} className={isLiked ? "fill-black" : ""} />
+                        {formatCount(likesCount)}
+                      </Button>
+                      
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="flex items-center gap-2"
+                        onClick={() => setShowComments(true)}
+                      >
+                        <MessageSquare size={16} />
+                        {formatCount(comments.length)}
+                      </Button>
+                    </div>
+                    
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={handleShare}
                     >
-                      <Share2 size={16} className="mr-2" />
-                      Share
+                      <Share2 size={16} />
                     </Button>
+                  </div>
+                  
+                  {/* Owner actions */}
+                  {user && user.id === idea.user.id && (
+                    <div className="flex gap-2 mb-4">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="flex items-center gap-2 flex-1"
+                        onClick={() => navigate(`/edit/${idea.id}`)}
+                      >
+                        <Edit size={16} />
+                        Edit
+                      </Button>
+                      
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        className="flex items-center gap-2 flex-1"
+                        onClick={() => setDeleteDialogOpen(true)}
+                      >
+                        <Trash2 size={16} />
+                        Delete
+                      </Button>
+                    </div>
+                  )}
+                  
+                  {/* Problem indicator */}
+                  {hasProblem && (
+                    <div className="bg-yellow-400/10 border border-yellow-400/20 rounded-lg p-3 mb-4">
+                      <div className="flex items-center gap-2 text-yellow-400 mb-1">
+                        <AlertTriangle size={16} />
+                        <span className="font-medium">Problem Statement</span>
+                      </div>
+                      <p className="text-sm text-gray-300">
+                        This is a problem that needs solutions. Share your ideas to solve it!
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* Tags */}
+                  {idea.tags && idea.tags.length > 0 && (
+                    <div className="mb-4">
+                      <h3 className="text-sm font-medium mb-2">Tags</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {idea.tags.map((tag) => (
+                          <Badge 
+                            key={tag}
+                            variant="outline"
+                            className="flex items-center gap-1 bg-gray-800 hover:bg-gray-700"
+                          >
+                            <Tag size={12} />
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Created date */}
+                  <div className="text-xs text-gray-400">
+                    Posted {new Date(idea.createdAt).toLocaleDateString()}
                   </div>
                 </CardContent>
               </Card>
-            )}
-
-            {/* Similar ideas */}
-            {similarIdeas.length > 0 && (
-              <div>
-                <h3 className="font-semibold mb-3">Similar Ideas</h3>
-                <div className="space-y-3">
-                  {similarIdeas.map(similarIdea => (
-                    <div 
-                      key={similarIdea.id}
-                      className="flex gap-3 p-2 hover:bg-gray-800 rounded-lg cursor-pointer"
-                      onClick={() => {
-                        navigate(`/idea/${similarIdea.id}`);
-                        window.scrollTo(0, 0);
-                      }}
-                    >
-                      <div className="w-14 h-14 rounded overflow-hidden bg-gray-700">
-                        <img 
-                          src={similarIdea.thumbnail_url || similarIdea.media_url || `https://api.dicebear.com/7.x/shapes/svg?seed=${similarIdea.id}`} 
-                          alt={similarIdea.title} 
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/shapes/svg?seed=${similarIdea.id}`;
-                          }}
-                        />
+            </div>
+          </div>
+          
+          {/* Idea details */}
+          <div className="mt-6">
+            <Tabs defaultValue="description" className="w-full">
+              <TabsList className="bg-gray-900 border-b border-gray-800 rounded-none w-full justify-start">
+                <TabsTrigger value="description">Description</TabsTrigger>
+                {hasProblem && (
+                  <TabsTrigger value="problem">Problem Details</TabsTrigger>
+                )}
+                <TabsTrigger value="discussion">
+                  Discussion ({comments.length})
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="description" className="pt-4">
+                <h1 className="text-2xl font-bold mb-2">{idea.title}</h1>
+                <p className="text-gray-300 whitespace-pre-wrap">{idea.description}</p>
+              </TabsContent>
+              
+              {hasProblem && (
+                <TabsContent value="problem" className="pt-4">
+                  <h2 className="text-xl font-bold mb-4">Problem Statement</h2>
+                  <div className="space-y-4">
+                    {idea.questions.map((question, index) => (
+                      <div key={index} className="bg-gray-900 p-4 rounded-lg">
+                        <h3 className="font-medium mb-2">{question.question}</h3>
+                        <p className="text-gray-300">{question.answer}</p>
                       </div>
-                      <div>
-                        <h4 className="text-sm font-medium line-clamp-1">{similarIdea.title}</h4>
-                        <p className="text-xs text-gray-400 line-clamp-1">
-                          @{similarIdea.profiles?.username || "user"} • {similarIdea.likes || 0} likes
-                        </p>
-                      </div>
+                    ))}
+                  </div>
+                </TabsContent>
+              )}
+              
+              <TabsContent value="discussion" className="pt-4">
+                <div className="bg-gray-900 p-4 rounded-lg">
+                  <h2 className="text-xl font-bold mb-4">Discussion</h2>
+                  {comments.length > 0 ? (
+                    <div className="space-y-4">
+                      {comments.slice(0, 3).map((comment) => (
+                        <div key={comment.id} className="flex gap-3">
+                          <img 
+                            src={comment.user.avatar} 
+                            alt={comment.user.username}
+                            className="w-8 h-8 rounded-full"
+                          />
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{comment.user.username}</span>
+                              <span className="text-xs text-gray-400">{comment.timestamp}</span>
+                            </div>
+                            <p className="text-gray-300">{comment.text}</p>
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {comments.length > 3 && (
+                        <Button 
+                          variant="outline" 
+                          className="w-full"
+                          onClick={() => setShowComments(true)}
+                        >
+                          View all {comments.length} comments
+                        </Button>
+                      )}
                     </div>
-                  ))}
+                  ) : (
+                    <div className="text-center py-6">
+                      <MessageSquare size={32} className="mx-auto mb-2 text-gray-600" />
+                      <p className="text-gray-400">No comments yet</p>
+                      <Button 
+                        className="mt-4"
+                        onClick={() => setShowComments(true)}
+                      >
+                        Be the first to comment
+                      </Button>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
       </div>
-
+      
+      {/* Comments modal */}
+      {showComments && (
+        <CommentSection
+          ideaId={id || ""}
+          comments={comments}
+          onClose={() => setShowComments(false)}
+          currentUser={user ? {
+            id: user.id,
+            username: user.email?.split('@')[0] || 'User',
+            avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${user.email}`,
+            name: user.email?.split('@')[0] || 'User',
+            followers: 0,
+            following: 0,
+            bio: ''
+          } : null}
+          onCommentSubmit={handleCommentSubmit}
+        />
+      )}
+      
+      {/* Delete confirmation dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this submission. This action cannot be undone.
+              This action cannot be undone. This will permanently delete your idea
+              and remove it from our servers.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteIdea} className="bg-red-600 hover:bg-red-700">
+            <AlertDialogAction 
+              onClick={handleDeleteIdea}
+              className="bg-red-600 hover:bg-red-700"
+            >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

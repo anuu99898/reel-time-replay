@@ -139,23 +139,14 @@ export const incrementShares = async (ideaId: string) => {
 // Idea interactions check
 export const getIdeaInteractions = async (ideaId: string, userId: string) => {
   try {
+    // Use manual query instead of RPC since the RPC function might not be available
     const { data, error } = await supabase
-      .rpc('get_user_idea_interactions', { 
-        p_idea_id: ideaId,
-        p_user_id: userId 
-      });
+      .from('idea_interactions')
+      .select('*')
+      .eq('idea_id', ideaId)
+      .eq('user_id', userId);
       
-    if (error) {
-      // Fallback to manual query if RPC not available
-      const { data: manualData, error: manualError } = await supabase
-        .from('idea_interactions')
-        .select('*')
-        .eq('idea_id', ideaId)
-        .eq('user_id', userId);
-        
-      if (manualError) throw manualError;
-      return manualData;
-    }
+    if (error) throw error;
     
     return data;
   } catch (error) {

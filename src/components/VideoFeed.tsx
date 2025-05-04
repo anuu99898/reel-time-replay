@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Video as VideoType } from "@/data/videos";
 import VideoPlayer from "./VideoPlayer";
@@ -45,6 +46,7 @@ const VideoItem: React.FC<VideoItemProps> = ({ video, isActive }) => {
 
       {showComments && (
         <CommentSection
+          ideaId={video.id || "video-comment"} // Adding ideaId property
           comments={video.comments}
           onClose={() => setShowComments(false)}
           currentUser={video.user}
@@ -78,11 +80,12 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ videos, className }) => {
     return () => feed.removeEventListener("scroll", handleScroll);
   }, [handleScroll]);
 
-  // Gesture support (Swipe up and down)
-  const handleSwipe = (e: React.TouchEvent) => {
+  // Gesture support (Swipe up and down) - fix the touch event types
+  const handleSwipe = useCallback((e: React.TouchEvent) => {
     const touchStart = e.touches[0].clientY;
-    const handleTouchEnd = (e: React.TouchEvent) => {
-      const touchEnd = e.changedTouches[0].clientY;
+    
+    const handleTouchEnd = (event: TouchEvent) => {
+      const touchEnd = event.changedTouches[0].clientY;
       if (touchStart - touchEnd > 30) {
         // Swipe up: move to next video
         if (activeVideoIndex < videos.length - 1) {
@@ -94,11 +97,20 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ videos, className }) => {
           setActiveVideoIndex((prev) => prev - 1);
         }
       }
-      feedRef.current?.removeEventListener("touchend", handleTouchEnd);
+      
+      // Remove the event listener
+      const feed = feedRef.current;
+      if (feed) {
+        feed.removeEventListener("touchend", handleTouchEnd);
+      }
     };
 
-    feedRef.current?.addEventListener("touchend", handleTouchEnd);
-  };
+    // Add the event listener using native DOM API with proper types
+    const feed = feedRef.current;
+    if (feed) {
+      feed.addEventListener("touchend", handleTouchEnd);
+    }
+  }, [activeVideoIndex, videos.length]);
 
   return (
     <div
