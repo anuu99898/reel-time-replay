@@ -1,13 +1,12 @@
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import VideoPlayer from "./VideoPlayer";
 import IdeaActions from "./IdeaActions";
 import ProfilePreview from "./ProfilePreview";
 import CommentSectionWrapper from "./CommentSectionWrapper";
 import { cn } from "@/lib/utils";
-import { Tag, Star, MessageSquare, AlertTriangle } from "lucide-react";
+import { Tag, AlertTriangle, MessageSquare } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatCount } from "@/data/ideas";
 import { useNavigate } from "react-router-dom";
 import { IdeaProps } from "@/types/idea";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -120,7 +119,7 @@ const IdeaItem: React.FC<IdeaItemProps> = ({ idea, isActive }) => {
   return (
     <div
       ref={ideaRef}
-      className="snap-start w-full h-screen flex items-center justify-center bg-black relative"
+      className="w-full min-h-screen flex items-center justify-center bg-black relative"
     >
       {/* Video or Card display based on idea type */}
       <div 
@@ -201,33 +200,13 @@ const IdeaItem: React.FC<IdeaItemProps> = ({ idea, isActive }) => {
         </div>
       )}
 
-      {/* Idea info - bottom overlay */}
+      {/* Simplified profile preview - bottom overlay */}
       <div className={cn(
         "absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black to-transparent z-10",
         isMobile ? "pt-20" : "pt-16"
       )} onClick={handleIdeaClick}>
-        <div className="flex flex-col">
-          {/* User info */}
-          <ProfilePreview user={idea.user} className="mb-3" />
-          
-          {/* Title & Description */}
-          <div className="pr-16">
-            <h3 className="text-white text-lg font-bold mb-1">{idea.title}</h3>
-            <p className="text-white text-sm mb-2 line-clamp-2">{idea.description}</p>
-            
-            {/* Tags info */}
-            {idea.tags && idea.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-2">
-                {idea.tags.slice(0, 3).map((tag) => (
-                  <span key={tag} className="text-sm text-gray-300">#{tag} </span>
-                ))}
-                {idea.tags.length > 3 && (
-                  <span className="text-sm text-gray-500">+{idea.tags.length - 3} more</span>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+        {/* User info - simplified */}
+        <ProfilePreview user={idea.user} className="mb-2" />
       </div>
 
       {/* Idea actions - right side */}
@@ -273,99 +252,38 @@ interface IdeaFeedProps {
 const IdeaFeed: React.FC<IdeaFeedProps> = ({ ideas, className }) => {
   const [activeIdeaIndex, setActiveIdeaIndex] = useState(0);
   const feedRef = useRef<HTMLDivElement>(null);
-  
-  // Improved scroll handler with debouncing
-  const handleScroll = useCallback(() => {
+
+  // Simple scroll handler without advanced effects
+  const handleScroll = () => {
     if (!feedRef.current) return;
     
-    // Use requestAnimationFrame for smoother scrolling
-    requestAnimationFrame(() => {
-      if (!feedRef.current) return;
-      
-      const scrollTop = feedRef.current.scrollTop;
-      const ideaHeight = feedRef.current.clientHeight;
-      const index = Math.round(scrollTop / ideaHeight);
-      
-      if (index !== activeIdeaIndex && index >= 0 && index < ideas.length) {
-        setActiveIdeaIndex(index);
-      }
-    });
-  }, [activeIdeaIndex, ideas.length]);
+    const scrollTop = feedRef.current.scrollTop;
+    const ideaHeight = window.innerHeight;
+    const index = Math.floor((scrollTop + ideaHeight / 2) / ideaHeight);
+    
+    if (index !== activeIdeaIndex && index >= 0 && index < ideas.length) {
+      setActiveIdeaIndex(index);
+    }
+  };
 
+  // Set up scroll listener
   useEffect(() => {
     const feedElement = feedRef.current;
     if (!feedElement) return;
     
-    // Ensure proper initial alignment on component mount
-    const initialScroll = () => {
-      const height = feedElement.clientHeight;
-      feedElement.scrollTo({
-        top: activeIdeaIndex * height,
-        behavior: "auto"
-      });
-    };
-    
-    // Run initial alignment after a small delay to ensure DOM is ready
-    const timer = setTimeout(initialScroll, 100);
-    
     feedElement.addEventListener("scroll", handleScroll);
     return () => {
-      clearTimeout(timer);
       feedElement.removeEventListener("scroll", handleScroll);
     };
-  }, [handleScroll, activeIdeaIndex]);
-
-  // Improved swipe gesture handling
-  const handleSwipe = useCallback((e: React.TouchEvent) => {
-    if (!feedRef.current) return;
-    const touchStart = e.touches[0].clientY;
-    
-    const handleTouchEnd = (event: TouchEvent) => {
-      const touchEnd = event.changedTouches[0].clientY;
-      const swipeThreshold = 50; // Increased threshold for better detection
-      
-      if (touchStart - touchEnd > swipeThreshold) {
-        // Swipe up: move to next idea
-        if (activeIdeaIndex < ideas.length - 1) {
-          const nextIndex = activeIdeaIndex + 1;
-          setActiveIdeaIndex(nextIndex);
-          
-          // Smooth scroll to next idea
-          feedRef.current?.scrollTo({
-            top: nextIndex * feedRef.current.clientHeight,
-            behavior: "smooth"
-          });
-        }
-      } else if (touchEnd - touchStart > swipeThreshold) {
-        // Swipe down: move to previous idea
-        if (activeIdeaIndex > 0) {
-          const prevIndex = activeIdeaIndex - 1;
-          setActiveIdeaIndex(prevIndex);
-          
-          // Smooth scroll to previous idea
-          feedRef.current?.scrollTo({
-            top: prevIndex * feedRef.current.clientHeight,
-            behavior: "smooth"
-          });
-        }
-      }
-      
-      // Remove the event listener
-      document.removeEventListener("touchend", handleTouchEnd);
-    };
-
-    // Add the event listener using document to capture all touch events
-    document.addEventListener("touchend", handleTouchEnd);
   }, [activeIdeaIndex, ideas.length]);
 
   return (
     <div 
       ref={feedRef}
       className={cn(
-        "h-screen overflow-y-scroll snap-y snap-mandatory hide-scrollbar scroll-smooth",
+        "h-screen overflow-y-auto",
         className
       )}
-      onTouchStart={handleSwipe}
     >
       {ideas.map((idea, index) => (
         <IdeaItem 

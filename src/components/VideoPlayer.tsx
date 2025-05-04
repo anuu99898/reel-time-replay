@@ -24,7 +24,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [isMuted, setIsMuted] = useState(false); // Default to muted for faster loading
+  const [isMuted, setIsMuted] = useState(false); // Changed default to false (unmuted)
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const isMobile = useIsMobile();
@@ -207,8 +207,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       // Reset loading attempts when coming into view
       loadAttemptRef.current = 0;
       
-      // Start with muted for faster autopla
-      
       // Explicitly preload video when in view to improve loading performance
       if (videoRef.current.preload !== "auto") {
         videoRef.current.preload = "auto";
@@ -243,7 +241,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         className="w-full h-full object-contain md:object-cover"
         loop
         playsInline
-        muted={isMuted}
+        muted={isMuted} // This will now default to false (unmuted)
         preload={preload}
         onTimeUpdate={updateProgress}
         onEnded={handleVideoEnd}
