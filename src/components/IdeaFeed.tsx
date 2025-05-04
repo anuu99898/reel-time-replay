@@ -11,6 +11,8 @@ import { formatCount } from "@/data/ideas";
 import { useNavigate } from "react-router-dom";
 import { IdeaProps } from "@/types/idea";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/providers/AuthProvider";
 
 interface IdeaItemProps {
   idea: IdeaProps;
@@ -19,9 +21,11 @@ interface IdeaItemProps {
 
 const IdeaItem: React.FC<IdeaItemProps> = ({ idea, isActive }) => {
   const [showComments, setShowComments] = useState(false);
+  const [comments, setComments] = useState(idea.comments);
   const ideaRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const { user } = useAuth();
 
   const handleIdeaClick = (e: React.MouseEvent) => {
     // Prevent navigation when clicking on interactive elements
@@ -38,6 +42,68 @@ const IdeaItem: React.FC<IdeaItemProps> = ({ idea, isActive }) => {
 
   // Check if this is a problem-based submission
   const hasProblem = idea.questions && idea.questions.length > 0;
+
+  const fetchComments = async () => {
+    try {
+      const { data } = await supabase
+        .from('comments')
+        .select('*, profiles(*)')
+        .eq('idea_id', idea.id)
+        .order('created_at', { ascending: false });
+        
+      if (data) {
+        const formattedComments = data.map((comment: any) => ({
+          id: comment.id,
+          text: comment.text,
+          timestamp: new Date(comment.created_at).toLocaleString(),
+          user: {
+            id: comment.profiles?.id || "anonymous",
+            username: comment.profiles?.username || "Anonymous",
+            avatar: comment.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${comment.user_id || "anon"}`,
+            name: comment.profiles?.full_name || "Anonymous User",
+            followers: 0,
+            following: 0,
+            bio: ""
+          },
+          likes: 0
+        }));
+        
+        setComments(formattedComments);
+      }
+    } catch (error) {
+      console.error("Error fetching comments:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (isActive) {
+      fetchComments();
+    }
+  }, [idea.id, isActive]);
+
+  const handleCommentSubmit = async (text: string) => {
+    if (!user) return Promise.reject(new Error('User not logged in'));
+    
+    try {
+      const { data, error } = await supabase
+        .from('comments')
+        .insert({
+          idea_id: idea.id,
+          user_id: user.id,
+          text: text
+        });
+        
+      if (error) throw error;
+      
+      // Refresh comments
+      await fetchComments();
+      
+      return Promise.resolve();
+    } catch (error) {
+      console.error("Error adding comment:", error);
+      return Promise.reject(error);
+    }
+  };
 
   return (
     <div
@@ -66,6 +132,9 @@ const IdeaItem: React.FC<IdeaItemProps> = ({ idea, isActive }) => {
                       src={idea.thumbnailUrl} 
                       alt={idea.title} 
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/shapes/svg?seed=${idea.id}`;
+                      }}
                     />
                   </div>
                 )}
@@ -90,12 +159,12 @@ const IdeaItem: React.FC<IdeaItemProps> = ({ idea, isActive }) => {
                     </div>
                   )}
                   
-                  {/* Questions */}
-                  {idea.comments && idea.comments.length > 0 && (
+                  {/* Comments counter */}
+                  {comments && comments.length > 0 && (
                     <div className="bg-gray-900 p-3 rounded-lg mb-4">
                       <h3 className="text-sm font-semibold text-white mb-2 flex items-center">
                         <MessageSquare size={16} className="mr-1 text-yellow-400" />
-                        Discussion ({idea.comments.length})
+                        Discussion ({comments.length})
                       </h3>
                       <p className="text-gray-400 text-sm">
                         Join the conversation and provide feedback
@@ -122,7 +191,7 @@ const IdeaItem: React.FC<IdeaItemProps> = ({ idea, isActive }) => {
       {/* Idea info - bottom overlay */}
       <div className={cn(
         "absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black to-transparent z-10",
-        isMobile ? "pt-20" : "pt-16"  // Extra padding to ensure content is visible on mobile
+        isMobile ? "pt-20" : "pt-16"
       )} onClick={handleIdeaClick}>
         <div className="flex flex-col">
           {/* User info */}
@@ -151,8 +220,9 @@ const IdeaItem: React.FC<IdeaItemProps> = ({ idea, isActive }) => {
       {/* Idea actions - right side */}
       <div className="absolute bottom-20 right-2 z-10 no-navigate">
         <IdeaActions
+          ideaId={idea.id}
           likes={idea.likes}
-          comments={idea.comments.length}
+          comments={comments.length}
           shares={idea.shares}
           onCommentClick={() => setShowComments(true)}
           rating={idea.ratings}
@@ -162,9 +232,20 @@ const IdeaItem: React.FC<IdeaItemProps> = ({ idea, isActive }) => {
       {/* Comments modal */}
       {showComments && (
         <CommentSection
-          comments={idea.comments}
+          ideaId={idea.id}
+          comments={comments}
           onClose={() => setShowComments(false)}
-          currentUser={null} // In a real app, this would be the logged-in user
+          currentUser={user ? {
+            id: user.id,
+            username: user.email?.split('@')[0] || 'User',
+            avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${user.email}`,
+            name: user.email?.split('@')[0] || 'User',
+            followers: 0,
+            following: 0,
+            bio: ''
+          } : null}
+          onCommentSubmit={handleCommentSubmit}
+          fetchComments={fetchComments}
         />
       )}
     </div>

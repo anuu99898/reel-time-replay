@@ -1,223 +1,202 @@
 
 import React, { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import {
-  Home,
-  Upload,
-  Search,
-  LogIn,
-  User,
-  LogOut,
-  Menu,
-  X,
-} from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
+import { Lightbulb, Menu, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/providers/AuthProvider";
-import { Button } from "./ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "./ui/sonner";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import NotificationBell from "./NotificationBell";
+import SearchBar from "./SearchBar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
-const Header = () => {
-  const navigate = useNavigate();
-  const { user } = useAuth();
+interface HeaderProps {
+  children?: React.ReactNode;
+}
+
+const Header: React.FC<HeaderProps> = ({ children }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [userProfile, setUserProfile] = useState<any>(null);
-  
+  const location = useLocation();
+  const isMobile = useIsMobile();
+  const { user, signOut } = useAuth();
+  const [isScrolled, setIsScrolled] = useState(false);
+
   useEffect(() => {
-    const fetchUserProfile = async () => {
-      if (!user) return;
-      
-      try {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", user.id)
-          .single();
-          
-        if (error) throw error;
-        setUserProfile(data);
-      } catch (error) {
-        console.error("Error fetching user profile:", error);
-      }
+    const handleScroll = () => {
+      const scrollPosition = window.scrollY;
+      setIsScrolled(scrollPosition > 50);
     };
-    
-    fetchUserProfile();
-  }, [user]);
-  
-  const handleSignOut = async () => {
-    try {
-      await supabase.auth.signOut();
-      toast.success("Signed out successfully");
-      navigate("/");
-    } catch (error) {
-      console.error("Error signing out:", error);
-      toast.error("Failed to sign out");
-    }
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const closeMenu = () => {
+    setIsMenuOpen(false);
   };
 
+  const buttonClassName = (path: string) =>
+    `py-2 px-3 text-sm font-medium ${
+      location.pathname === path
+        ? "text-white"
+        : "text-gray-300 hover:text-white"
+    }`;
+
+  const mobileButtonClassName = (path: string) =>
+    `block py-3 px-4 text-lg ${
+      location.pathname === path
+        ? "text-yellow-400 font-medium"
+        : "text-white"
+    }`;
+
+  const isActive = (path: string) => location.pathname === path;
+
   return (
-    <header className="fixed top-0 left-0 right-0 w-full bg-black border-b border-gray-800 z-50">
-      <div className="max-w-screen-xl mx-auto px-4 py-3">
-        <div className="flex items-center justify-between">
-          {/* Logo and brand name */}
-          <Link to="/" className="flex items-center text-white">
-            <span className="font-bold text-xl text-yellow-400">ReelIdeas</span>
-          </Link>
-
-          {/* Desktop navigation */}
-          <nav className="hidden md:flex items-center space-x-1">
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => navigate("/")}
-              className="text-gray-300 hover:text-white"
-            >
-              <Home className="mr-1 h-4 w-4" />
-              Home
-            </Button>
-            
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/upload")}
-              className="text-gray-300 hover:text-white"
-            >
-              <Upload className="mr-1 h-4 w-4" />
-              Upload
-            </Button>
-            
-            {user ? (
-              <>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => navigate("/profile")}
-                  className="text-gray-300 hover:text-white"
-                >
-                  <User className="mr-1 h-4 w-4" />
-                  Profile
-                </Button>
-                
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleSignOut}
-                  className="text-gray-300 hover:text-white"
-                >
-                  <LogOut className="mr-1 h-4 w-4" />
-                  Logout
-                </Button>
-                
-                <Avatar className="h-8 w-8 ml-2 cursor-pointer" onClick={() => navigate("/profile")}>
-                  <AvatarImage 
-                    src={userProfile?.avatar_url} 
-                    alt={userProfile?.username || 'User'} 
-                  />
-                  <AvatarFallback className="bg-yellow-400 text-black">
-                    {userProfile?.username?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
-                  </AvatarFallback>
-                </Avatar>
-              </>
-            ) : (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => navigate("/login")}
-                className="bg-yellow-400 hover:bg-yellow-500 text-black"
-              >
-                <LogIn className="mr-1 h-4 w-4" />
-                Login
-              </Button>
-            )}
-          </nav>
-
-          {/* Mobile menu button */}
-          <div className="md:hidden">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="text-white"
-            >
-              {isMenuOpen ? <X /> : <Menu />}
-            </Button>
+    <header
+      className={`fixed top-0 left-0 right-0 z-40 transition-all duration-200 ${
+        isScrolled || isMenuOpen
+          ? "bg-black border-b border-gray-800"
+          : "bg-gradient-to-b from-black via-black/80 to-transparent"
+      }`}
+    >
+      <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+        {/* Logo */}
+        <Link to="/" className="flex items-center">
+          <div className="bg-yellow-400 rounded-full p-1 mr-2">
+            <Lightbulb className="text-black h-5 w-5" />
           </div>
+          <span className="font-bold text-white text-lg">ReelIdeas</span>
+        </Link>
+
+        {/* Desktop Navigation */}
+        <div className="hidden md:flex items-center space-x-1">
+          <Link to="/" className={buttonClassName("/")}>
+            Home
+          </Link>
+          <Link to="/explore" className={buttonClassName("/explore")}>
+            Explore
+          </Link>
+          <Link to="/upload" className={buttonClassName("/upload")}>
+            Submit Idea
+          </Link>
         </div>
 
-        {/* Mobile navigation */}
-        {isMenuOpen && (
-          <div className="md:hidden py-3 space-y-1">
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => {
-                navigate("/");
-                setIsMenuOpen(false);
-              }}
-              className="w-full justify-start text-gray-300 hover:text-white"
-            >
-              <Home className="mr-2 h-4 w-4" />
-              Home
-            </Button>
-            
+        {/* Search, Notifications and Profile */}
+        <div className="flex items-center gap-2">
+          <SearchBar />
+          
+          {user && <NotificationBell />}
+
+          {user ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="rounded-full p-0 h-9 w-9">
+                  <Avatar>
+                    <AvatarImage 
+                      src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.email}`} 
+                      alt="Profile" 
+                    />
+                    <AvatarFallback>
+                      {user.email?.charAt(0).toUpperCase() || "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link to="/profile">My Profile</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/settings">Settings</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => signOut()}>
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Link to="/login">
+              <Button variant="outline" size="sm">
+                Sign In
+              </Button>
+            </Link>
+          )}
+
+          {/* Mobile menu button */}
+          {isMobile && (
             <Button
               variant="ghost"
-              size="sm"
-              onClick={() => {
-                navigate("/upload");
-                setIsMenuOpen(false);
-              }}
-              className="w-full justify-start text-gray-300 hover:text-white"
+              size="icon"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="md:hidden"
             >
-              <Upload className="mr-2 h-4 w-4" />
-              Upload
+              {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </Button>
-            
-            {user ? (
-              <>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    navigate("/profile");
-                    setIsMenuOpen(false);
-                  }}
-                  className="w-full justify-start text-gray-300 hover:text-white"
-                >
-                  <User className="mr-2 h-4 w-4" />
-                  Profile
-                </Button>
-                
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    handleSignOut();
-                    setIsMenuOpen(false);
-                  }}
-                  className="w-full justify-start text-gray-300 hover:text-white"
-                >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Logout
-                </Button>
-              </>
-            ) : (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => {
-                  navigate("/login");
-                  setIsMenuOpen(false);
-                }}
-                className="w-full justify-start bg-yellow-400 hover:bg-yellow-500 text-black"
-              >
-                <LogIn className="mr-2 h-4 w-4" />
-                Login
-              </Button>
-            )}
-          </div>
-        )}
+          )}
+        </div>
       </div>
+
+      {/* Mobile Navigation Menu */}
+      {isMobile && isMenuOpen && (
+        <div className="md:hidden bg-black border-t border-gray-800 absolute left-0 right-0">
+          <div className="flex flex-col">
+            <Link to="/" className={mobileButtonClassName("/")} onClick={closeMenu}>
+              Home
+            </Link>
+            <Link
+              to="/explore"
+              className={mobileButtonClassName("/explore")}
+              onClick={closeMenu}
+            >
+              Explore
+            </Link>
+            <Link
+              to="/upload"
+              className={mobileButtonClassName("/upload")}
+              onClick={closeMenu}
+            >
+              Submit Idea
+            </Link>
+            {user && (
+              <Link
+                to="/profile"
+                className={mobileButtonClassName("/profile")}
+                onClick={closeMenu}
+              >
+                My Profile
+              </Link>
+            )}
+            <div className="py-4 border-t border-gray-800">
+              {user ? (
+                <button
+                  onClick={() => {
+                    signOut();
+                    closeMenu();
+                  }}
+                  className="w-full text-left py-3 px-4 text-red-500"
+                >
+                  Sign Out
+                </button>
+              ) : (
+                <Link
+                  to="/login"
+                  className="block py-3 px-4 text-yellow-400 font-medium"
+                  onClick={closeMenu}
+                >
+                  Sign In
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {children}
     </header>
   );
 };

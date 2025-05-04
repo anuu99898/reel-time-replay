@@ -19,6 +19,7 @@ export interface IdeaProps {
     innovation: number;
     impact: number;
   };
+  questions?: string[];
 }
 
 export interface IdeaFeedProps {

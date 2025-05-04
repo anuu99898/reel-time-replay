@@ -3,22 +3,34 @@ import { Comment as CommentType, User, formatCount } from "@/data/ideas";
 import { Heart, X, Send, Lightbulb } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/providers/AuthProvider";
+import { toast } from "@/components/ui/sonner";
+import { v4 as uuidv4 } from "uuid";
 
 interface CommentProps {
   comment: CommentType;
+  onLike: (commentId: string, isLiked: boolean) => void;
 }
 
-const Comment: React.FC<CommentProps> = ({ comment }) => {
+const Comment: React.FC<CommentProps> = ({ comment, onLike }) => {
   const [liked, setLiked] = useState(false);
   const [likes, setLikes] = useState(comment.likes);
+  const { user } = useAuth();
 
-  const handleLike = () => {
+  const handleLike = async () => {
+    if (!user) {
+      toast.error("Please login to like comments");
+      return;
+    }
+    
     if (liked) {
       setLikes(likes - 1);
     } else {
       setLikes(likes + 1);
     }
     setLiked(!liked);
+    onLike(comment.id, !liked);
   };
 
   return (
@@ -57,46 +69,90 @@ const Comment: React.FC<CommentProps> = ({ comment }) => {
 
 interface CommentSectionProps {
   comments: CommentType[];
+  ideaId: string;
   onClose: () => void;
-  currentUser?: User | null; // In a real app, this would be the logged-in user
-  onCommentSubmit?: (text: string) => void;
+  currentUser?: User | null;
+  onCommentSubmit?: (text: string) => Promise<void>;
+  fetchComments?: () => Promise<void>;
 }
 
 const CommentSection: React.FC<CommentSectionProps> = ({
   comments,
+  ideaId,
   onClose,
   currentUser,
   onCommentSubmit,
+  fetchComments,
 }) => {
   const [commentText, setCommentText] = useState("");
   const [commentsList, setCommentsList] = useState(comments);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { user } = useAuth();
+
+  const handleLikeComment = async (commentId: string, isLiked: boolean) => {
+    if (!user) return;
+    
+    try {
+      // In a real app, we would update the comment likes in the database
+      // For now, we'll just update the local state
+      toast.success(isLiked ? "Comment liked!" : "Comment unliked");
+    } catch (error) {
+      console.error("Error liking comment:", error);
+      toast.error("Failed to update like");
+    }
+  };
 
   const handleSubmitComment = async () => {
     if (!commentText.trim() || !currentUser || isSubmitting) return;
     
     setIsSubmitting(true);
     
-    // If we have an external handler, use it
-    if (onCommentSubmit) {
-      await onCommentSubmit(commentText);
-      setCommentText("");
-      setIsSubmitting(false);
-      return;
-    }
-    
-    // Otherwise handle locally (fallback for demo purposes)
-    const newComment: CommentType = {
-      id: `comment${Date.now()}`,
-      user: currentUser,
-      text: commentText,
-      likes: 0,
-      timestamp: "Just now",
-    };
+    try {
+      // If we have an external handler, use it
+      if (onCommentSubmit) {
+        await onCommentSubmit(commentText);
+        setCommentText("");
+        
+        // Refresh comments list if we have a fetch function
+        if (fetchComments) {
+          await fetchComments();
+        }
+        
+        setIsSubmitting(false);
+        return;
+      }
+      
+      // Otherwise handle locally (add to database directly)
+      const { data, error } = await supabase
+        .from('comments')
+        .insert({
+          idea_id: ideaId,
+          user_id: user?.id,
+          text: commentText
+        })
+        .select('*')
+        .single();
+        
+      if (error) throw error;
+      
+      // Create a new comment object
+      const newComment: CommentType = {
+        id: data.id,
+        user: currentUser,
+        text: commentText,
+        likes: 0,
+        timestamp: "Just now",
+      };
 
-    setCommentsList([newComment, ...commentsList]);
-    setCommentText("");
-    setIsSubmitting(false);
+      setCommentsList([newComment, ...commentsList]);
+      setCommentText("");
+      toast.success("Comment added successfully!");
+    } catch (error) {
+      console.error("Error submitting comment:", error);
+      toast.error("Failed to add comment");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -117,7 +173,11 @@ const CommentSection: React.FC<CommentSectionProps> = ({
         <div className="flex-1 overflow-y-auto p-4">
           {commentsList.length > 0 ? (
             commentsList.map((comment) => (
-              <Comment key={comment.id} comment={comment} />
+              <Comment 
+                key={comment.id} 
+                comment={comment} 
+                onLike={handleLikeComment}
+              />
             ))
           ) : (
             <div className="text-center py-8 text-gray-400">

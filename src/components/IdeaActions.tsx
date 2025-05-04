@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+
+import React, { useState, useEffect } from "react";
 import {
   Lightbulb,
   MessageSquare,
@@ -8,6 +9,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCount } from "@/data/ideas";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/providers/AuthProvider";
+import { toast } from "@/components/ui/sonner";
 
 interface Rating {
   practicality: number;
@@ -16,6 +20,7 @@ interface Rating {
 }
 
 interface IdeaActionsProps {
+  ideaId: string;
   likes: number;
   comments: number;
   shares: number;
@@ -29,17 +34,23 @@ const IconButton = ({
   icon: Icon,
   label,
   activeClass,
+  disabled = false,
 }: {
   onClick: () => void;
   active: boolean;
   icon: React.ElementType;
   label: string;
   activeClass: string;
+  disabled?: boolean;
 }) => (
   <button
     onClick={onClick}
     aria-label={label}
-    className="flex flex-col items-center group"
+    className={cn(
+      "flex flex-col items-center group",
+      disabled && "opacity-60 cursor-not-allowed"
+    )}
+    disabled={disabled}
   >
     <div
       className={cn(
@@ -63,24 +74,156 @@ const IconButton = ({
 );
 
 const IdeaActions: React.FC<IdeaActionsProps> = ({
+  ideaId,
   likes: initialLikes,
   comments,
   shares,
   onCommentClick,
 }) => {
+  const { user } = useAuth();
   const [liked, setLiked] = useState(false);
   const [likes, setLikes] = useState(initialLikes);
   const [voted, setVoted] = useState<'up' | 'down' | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  useEffect(() => {
+    // Check if user has already liked this idea
+    const checkUserInteractions = async () => {
+      if (!user) return;
+      
+      try {
+        const { data: likeData } = await supabase
+          .from('idea_interactions')
+          .select('*')
+          .eq('idea_id', ideaId)
+          .eq('user_id', user.id)
+          .eq('interaction_type', 'like')
+          .single();
+          
+        if (likeData) {
+          setLiked(true);
+        }
+        
+        const { data: voteData } = await supabase
+          .from('idea_interactions')
+          .select('*')
+          .eq('idea_id', ideaId)
+          .eq('user_id', user.id)
+          .in('interaction_type', ['vote_up', 'vote_down'])
+          .single();
+          
+        if (voteData) {
+          setVoted(voteData.interaction_type === 'vote_up' ? 'up' : 'down');
+        }
+      } catch (error) {
+        // No interactions found or error, which is fine
+        console.log('No previous interactions found');
+      }
+    };
+    
+    checkUserInteractions();
+  }, [ideaId, user]);
 
-  const handleLikeClick = () => {
-    setLiked((prev) => {
-      setLikes((count) => count + (prev ? -1 : 1));
-      return !prev;
-    });
+  const handleLikeClick = async () => {
+    if (isLoading || !user) {
+      if (!user) toast.error("Please login to like ideas");
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      if (liked) {
+        // Unlike the idea
+        await supabase
+          .from('idea_interactions')
+          .delete()
+          .eq('idea_id', ideaId)
+          .eq('user_id', user.id)
+          .eq('interaction_type', 'like');
+          
+        // Update likes count in ideas table
+        await supabase
+          .rpc('decrement_likes', { idea_id: ideaId });
+          
+        setLikes(likes - 1);
+        setLiked(false);
+        toast.success("Idea unliked");
+      } else {
+        // Like the idea
+        await supabase
+          .from('idea_interactions')
+          .insert({
+            idea_id: ideaId,
+            user_id: user.id,
+            interaction_type: 'like'
+          });
+          
+        // Update likes count in ideas table
+        await supabase
+          .rpc('increment_likes', { idea_id: ideaId });
+          
+        setLikes(likes + 1);
+        setLiked(true);
+        toast.success("Idea liked!");
+      }
+    } catch (error) {
+      console.error("Error updating like:", error);
+      toast.error("Failed to update like");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleVote = (direction: 'up' | 'down') => {
-    setVoted((prev) => (prev === direction ? null : direction));
+  const handleVote = async (direction: 'up' | 'down') => {
+    if (isLoading || !user) {
+      if (!user) toast.error("Please login to vote");
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      if (voted === direction) {
+        // Remove vote
+        await supabase
+          .from('idea_interactions')
+          .delete()
+          .eq('idea_id', ideaId)
+          .eq('user_id', user.id)
+          .eq('interaction_type', direction === 'up' ? 'vote_up' : 'vote_down');
+          
+        setVoted(null);
+        toast.success("Vote removed");
+      } else {
+        // First remove any existing votes
+        if (voted) {
+          await supabase
+            .from('idea_interactions')
+            .delete()
+            .eq('idea_id', ideaId)
+            .eq('user_id', user.id)
+            .in('interaction_type', ['vote_up', 'vote_down']);
+        }
+        
+        // Add new vote
+        await supabase
+          .from('idea_interactions')
+          .insert({
+            idea_id: ideaId,
+            user_id: user.id,
+            interaction_type: direction === 'up' ? 'vote_up' : 'vote_down'
+          });
+          
+        setVoted(direction);
+        toast.success(direction === 'up' ? "Marked as promising" : "Marked as needs work");
+      }
+    } catch (error) {
+      console.error("Error updating vote:", error);
+      toast.error("Failed to update vote");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleShareClick = () => {
@@ -88,9 +231,30 @@ const IdeaActions: React.FC<IdeaActionsProps> = ({
       navigator.share({
         title: 'Check this idea!',
         url: window.location.href,
+      }).then(() => {
+        // Update share count
+        if (user) {
+          supabase
+            .rpc('increment_shares', { idea_id: ideaId })
+            .then(() => {
+              toast.success("Successfully shared!");
+            });
+        }
       });
     } else {
-      alert("Share functionality would open here!");
+      // Fallback
+      navigator.clipboard.writeText(window.location.href);
+      
+      // Update share count
+      if (user) {
+        supabase
+          .rpc('increment_shares', { idea_id: ideaId })
+          .then(() => {
+            toast.success("Link copied to clipboard!");
+          });
+      } else {
+        toast.success("Link copied to clipboard!");
+      }
     }
   };
 
@@ -102,6 +266,7 @@ const IdeaActions: React.FC<IdeaActionsProps> = ({
         icon={Lightbulb}
         label={formatCount(likes)}
         activeClass="text-yellow-400 fill-yellow-400"
+        disabled={isLoading}
       />
 
       <IconButton
@@ -110,6 +275,7 @@ const IdeaActions: React.FC<IdeaActionsProps> = ({
         icon={ThumbsUp}
         label="Promising"
         activeClass="text-green-500 fill-green-500"
+        disabled={isLoading}
       />
 
       <IconButton
@@ -118,6 +284,7 @@ const IdeaActions: React.FC<IdeaActionsProps> = ({
         icon={ThumbsDown}
         label="Needs work"
         activeClass="text-red-500 fill-red-500"
+        disabled={isLoading}
       />
 
       <IconButton
