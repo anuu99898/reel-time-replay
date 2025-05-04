@@ -9,9 +9,15 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCount } from "@/data/ideas";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/providers/AuthProvider";
 import { toast } from "@/components/ui/sonner";
+import { 
+  likeIdea, 
+  voteOnIdea, 
+  incrementShares,
+  hasUserLikedIdea,
+  getUserVoteOnIdea
+} from "@/integrations/supabase/database";
 
 interface Rating {
   practicality: number;
@@ -92,32 +98,15 @@ const IdeaActions: React.FC<IdeaActionsProps> = ({
       if (!user) return;
       
       try {
-        const { data: likeData } = await supabase
-          .from('idea_interactions')
-          .select('*')
-          .eq('idea_id', ideaId)
-          .eq('user_id', user.id)
-          .eq('interaction_type', 'like')
-          .single();
-          
-        if (likeData) {
-          setLiked(true);
-        }
+        // Check like status
+        const userLiked = await hasUserLikedIdea(ideaId, user.id);
+        setLiked(userLiked);
         
-        const { data: voteData } = await supabase
-          .from('idea_interactions')
-          .select('*')
-          .eq('idea_id', ideaId)
-          .eq('user_id', user.id)
-          .in('interaction_type', ['vote_up', 'vote_down'])
-          .single();
-          
-        if (voteData) {
-          setVoted(voteData.interaction_type === 'vote_up' ? 'up' : 'down');
-        }
+        // Check vote status
+        const voteType = await getUserVoteOnIdea(ideaId, user.id);
+        setVoted(voteType);
       } catch (error) {
-        // No interactions found or error, which is fine
-        console.log('No previous interactions found');
+        console.error("Error checking user interactions:", error);
       }
     };
     
@@ -133,39 +122,16 @@ const IdeaActions: React.FC<IdeaActionsProps> = ({
     setIsLoading(true);
     
     try {
-      if (liked) {
-        // Unlike the idea
-        await supabase
-          .from('idea_interactions')
-          .delete()
-          .eq('idea_id', ideaId)
-          .eq('user_id', user.id)
-          .eq('interaction_type', 'like');
-          
-        // Update likes count in ideas table
-        await supabase
-          .rpc('decrement_likes', { idea_id: ideaId });
-          
-        setLikes(likes - 1);
-        setLiked(false);
-        toast.success("Idea unliked");
-      } else {
-        // Like the idea
-        await supabase
-          .from('idea_interactions')
-          .insert({
-            idea_id: ideaId,
-            user_id: user.id,
-            interaction_type: 'like'
-          });
-          
-        // Update likes count in ideas table
-        await supabase
-          .rpc('increment_likes', { idea_id: ideaId });
-          
+      const isNowLiked = await likeIdea(ideaId, user.id);
+      
+      if (isNowLiked) {
         setLikes(likes + 1);
         setLiked(true);
         toast.success("Idea liked!");
+      } else {
+        setLikes(Math.max(0, likes - 1));
+        setLiked(false);
+        toast.success("Idea unliked");
       }
     } catch (error) {
       console.error("Error updating like:", error);
@@ -184,37 +150,13 @@ const IdeaActions: React.FC<IdeaActionsProps> = ({
     setIsLoading(true);
     
     try {
-      if (voted === direction) {
-        // Remove vote
-        await supabase
-          .from('idea_interactions')
-          .delete()
-          .eq('idea_id', ideaId)
-          .eq('user_id', user.id)
-          .eq('interaction_type', direction === 'up' ? 'vote_up' : 'vote_down');
-          
+      const newVoteType = await voteOnIdea(ideaId, user.id, direction);
+      
+      // Update UI based on returned vote state
+      if (newVoteType === null) {
         setVoted(null);
         toast.success("Vote removed");
       } else {
-        // First remove any existing votes
-        if (voted) {
-          await supabase
-            .from('idea_interactions')
-            .delete()
-            .eq('idea_id', ideaId)
-            .eq('user_id', user.id)
-            .in('interaction_type', ['vote_up', 'vote_down']);
-        }
-        
-        // Add new vote
-        await supabase
-          .from('idea_interactions')
-          .insert({
-            idea_id: ideaId,
-            user_id: user.id,
-            interaction_type: direction === 'up' ? 'vote_up' : 'vote_down'
-          });
-          
         setVoted(direction);
         toast.success(direction === 'up' ? "Marked as promising" : "Marked as needs work");
       }
@@ -226,35 +168,43 @@ const IdeaActions: React.FC<IdeaActionsProps> = ({
     }
   };
 
-  const handleShareClick = () => {
+  const handleShareClick = async () => {
+    // Native share if available
     if (navigator.share) {
-      navigator.share({
-        title: 'Check this idea!',
-        url: window.location.href,
-      }).then(() => {
-        // Update share count
+      try {
+        await navigator.share({
+          title: 'Check this idea!',
+          url: window.location.href,
+        });
+        
+        // Update share count if successful
         if (user) {
-          supabase
-            .rpc('increment_shares', { idea_id: ideaId })
-            .then(() => {
-              toast.success("Successfully shared!");
-            });
+          await incrementShares(ideaId);
+          toast.success("Successfully shared!");
         }
-      });
+      } catch (error) {
+        console.error("Share failed:", error);
+        // Fallback to clipboard if sharing was cancelled
+        handleClipboardShare();
+      }
     } else {
-      // Fallback
-      navigator.clipboard.writeText(window.location.href);
+      // Fallback to clipboard
+      handleClipboardShare();
+    }
+  };
+  
+  const handleClipboardShare = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
       
       // Update share count
       if (user) {
-        supabase
-          .rpc('increment_shares', { idea_id: ideaId })
-          .then(() => {
-            toast.success("Link copied to clipboard!");
-          });
-      } else {
-        toast.success("Link copied to clipboard!");
+        await incrementShares(ideaId);
       }
+      toast.success("Link copied to clipboard!");
+    } catch (error) {
+      console.error("Copy failed:", error);
+      toast.error("Failed to copy link");
     }
   };
 

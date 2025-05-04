@@ -41,6 +41,38 @@ export type Database = {
           },
         ]
       }
+      idea_interactions: {
+        Row: {
+          created_at: string
+          id: string
+          idea_id: string
+          interaction_type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          idea_id: string
+          interaction_type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          idea_id?: string
+          interaction_type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "idea_interactions_idea_id_fkey"
+            columns: ["idea_id"]
+            isOneToOne: false
+            referencedRelation: "ideas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       idea_ratings: {
         Row: {
           created_at: string | null
@@ -213,7 +245,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      decrement_likes: {
+        Args: { idea_id: string }
+        Returns: undefined
+      }
+      increment_likes: {
+        Args: { idea_id: string }
+        Returns: undefined
+      }
+      increment_shares: {
+        Args: { idea_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
