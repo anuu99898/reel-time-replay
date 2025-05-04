@@ -66,20 +66,24 @@ export const addComment = async (ideaId: string, userId: string, text: string) =
     if (error) throw error;
     
     // Get the newly created comment with profile info
-    if (data && data[0]) {
-      const { data: commentData, error: fetchError } = await supabase
-        .from('comments')
-        .select(`
-          *,
-          profiles:user_id (
-            id, username, avatar_url, full_name
-          )
-        `)
-        .eq('id', data[0].id)
-        .single();
-        
-      if (fetchError) throw fetchError;
-      return commentData;
+    if (data && data.length > 0 && data[0]) {
+      const commentId = data[0].id;
+      
+      if (commentId) {
+        const { data: commentData, error: fetchError } = await supabase
+          .from('comments')
+          .select(`
+            *,
+            profiles:user_id (
+              id, username, avatar_url, full_name
+            )
+          `)
+          .eq('id', commentId)
+          .single();
+          
+        if (fetchError) throw fetchError;
+        return commentData;
+      }
     }
     
     return data;
@@ -317,14 +321,19 @@ export const getIdeaDetail = async (ideaId: string) => {
         try {
           const { data: profileData } = await supabase
             .from('profiles')
-            .select('*')
+            .select('id, username, avatar_url, full_name')
             .eq('id', data.user_id)
             .single();
             
           // Create a new object with a profiles property to match the expected structure
           const result = {
             ...data,
-            profiles: profileData || {
+            profiles: profileData ? {
+              id: profileData.id || data.user_id,
+              username: profileData.username || "Anonymous",
+              avatar_url: profileData.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${data.user_id}`,
+              full_name: profileData.full_name || "Anonymous User"
+            } : {
               id: data.user_id,
               username: "Anonymous",
               avatar_url: `https://api.dicebear.com/7.x/initials/svg?seed=${data.user_id}`,

@@ -46,10 +46,10 @@ interface IdeaData {
   created_at: string | null;
   user_id: string | null;
   profiles?: {
-    id?: string | null;
-    username?: string | null;
-    avatar_url?: string | null;
-    full_name?: string | null;
+    id: string | null;
+    username: string | null;
+    avatar_url: string | null;
+    full_name: string | null;
   } | null;
 }
 
@@ -96,6 +96,9 @@ const IdeaDetail: React.FC = () => {
         
         if (!data) throw new Error('Idea not found');
         
+        // Safely access profiles data with proper type checking
+        const profileData = data.profiles && typeof data.profiles === 'object' ? data.profiles : null;
+        
         // Transform the data to match IdeaProps
         const transformedIdea: IdeaProps = {
           id: data.id,
@@ -112,10 +115,10 @@ const IdeaDetail: React.FC = () => {
           tags: data.tags || [],
           ratings: undefined, // This will be populated later if needed
           user: {
-            id: data.profiles?.id || data.user_id || '',
-            username: data.profiles?.username || 'Anonymous',
-            avatar: data.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${data.user_id || id}`,
-            name: data.profiles?.full_name || 'Anonymous User',
+            id: profileData?.id || data.user_id || 'anonymous',
+            username: profileData?.username || 'Anonymous',
+            avatar: profileData?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${data.user_id || id}`,
+            name: profileData?.full_name || 'Anonymous User',
             followers: 0,
             following: 0,
             bio: ''
@@ -161,21 +164,26 @@ const IdeaDetail: React.FC = () => {
         const commentsData = await getComments(id);
         
         // Transform comments to match the expected format
-        const formattedComments = commentsData.map((comment: any) => ({
-          id: comment.id,
-          text: comment.text,
-          timestamp: new Date(comment.created_at).toLocaleString(),
-          user: {
-            id: comment.profiles?.id || comment.user_id || "anonymous",
-            username: comment.profiles?.username || "Anonymous",
-            avatar: comment.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${comment.user_id || "anonymous"}`,
-            name: comment.profiles?.full_name || "Anonymous User",
-            followers: 0,
-            following: 0,
-            bio: ""
-          },
-          likes: 0
-        }));
+        const formattedComments = commentsData.map((comment: any) => {
+          // Safely access profiles data
+          const profileData = comment.profiles && typeof comment.profiles === 'object' ? comment.profiles : null;
+          
+          return {
+            id: comment.id,
+            text: comment.text,
+            timestamp: new Date(comment.created_at).toLocaleString(),
+            user: {
+              id: profileData?.id || comment.user_id || "anonymous",
+              username: profileData?.username || "Anonymous",
+              avatar: profileData?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${comment.user_id || "anonymous"}`,
+              name: profileData?.full_name || "Anonymous User",
+              followers: 0,
+              following: 0,
+              bio: ""
+            },
+            likes: 0
+          };
+        });
         
         setComments(formattedComments);
       } catch (error) {
@@ -239,21 +247,26 @@ const IdeaDetail: React.FC = () => {
       
       // Refresh comments
       const commentsData = await getComments(id);
-      const formattedComments = commentsData.map((comment: any) => ({
-        id: comment.id,
-        text: comment.text,
-        timestamp: new Date(comment.created_at).toLocaleString(),
-        user: {
-          id: comment.profiles?.id || comment.user_id || "anonymous",
-          username: comment.profiles?.username || "Anonymous",
-          avatar: comment.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${comment.user_id || "anonymous"}`,
-          name: comment.profiles?.full_name || "Anonymous User",
-          followers: 0,
-          following: 0,
-          bio: ""
-        },
-        likes: 0
-      }));
+      const formattedComments = commentsData.map((comment: any) => {
+        // Safely access profiles data
+        const profileData = comment.profiles && typeof comment.profiles === 'object' ? comment.profiles : null;
+        
+        return {
+          id: comment.id,
+          text: comment.text,
+          timestamp: new Date(comment.created_at).toLocaleString(),
+          user: {
+            id: profileData?.id || comment.user_id || "anonymous",
+            username: profileData?.username || "Anonymous",
+            avatar: profileData?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${comment.user_id || "anonymous"}`,
+            name: profileData?.full_name || "Anonymous User",
+            followers: 0,
+            following: 0,
+            bio: ""
+          },
+          likes: 0
+        };
+      });
       
       setComments(formattedComments);
       return Promise.resolve();
@@ -337,21 +350,26 @@ const IdeaDetail: React.FC = () => {
         try {
           setLoadingComments(true);
           const commentsData = await getComments(id);
-          const formattedComments = commentsData.map((comment: any) => ({
-            id: comment.id,
-            text: comment.text,
-            timestamp: new Date(comment.created_at).toLocaleString(),
-            user: {
-              id: comment.profiles?.id || comment.user_id || "anonymous",
-              username: comment.profiles?.username || "Anonymous",
-              avatar: comment.profiles?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${comment.user_id || "anonymous"}`,
-              name: comment.profiles?.full_name || "Anonymous User",
-              followers: 0,
-              following: 0,
-              bio: ""
-            },
-            likes: 0
-          }));
+          const formattedComments = commentsData.map((comment: any) => {
+            // Safely access profiles data
+            const profileData = comment.profiles && typeof comment.profiles === 'object' ? comment.profiles : null;
+            
+            return {
+              id: comment.id,
+              text: comment.text,
+              timestamp: new Date(comment.created_at).toLocaleString(),
+              user: {
+                id: profileData?.id || comment.user_id || "anonymous",
+                username: profileData?.username || "Anonymous",
+                avatar: profileData?.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${comment.user_id || "anonymous"}`,
+                name: profileData?.full_name || "Anonymous User",
+                followers: 0,
+                following: 0,
+                bio: ""
+              },
+              likes: 0
+            };
+          });
           
           setComments(formattedComments);
         } catch (error) {
